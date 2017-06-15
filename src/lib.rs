@@ -6,7 +6,6 @@ mod oci_bindings;
 #[cfg(test)]
 mod tests {
     use connection::Connection;
-    use std::error::Error;
 
     #[test]
     fn create_connection() {

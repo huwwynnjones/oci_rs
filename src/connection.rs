@@ -1,25 +1,27 @@
-use oci_bindings::{OCIEnv, OCIEnvCreate, OCI_DEFAULT, OCIErrorGet, OCI_SUCCESS, OCI_HTYPE_ENV,
-                   ErrorHandleType, OCIHandleFree};
+use oci_bindings::{OCIEnv, OCIEnvCreate, OCI_DEFAULT, OCI_SUCCESS, ErrorHandleType, OCIHandleFree,
+                   OCIServer, OCIHandleAlloc, OCI_HTYPE_SERVER, ReturnCode, ToReturnCode};
 use oci_error::{OciError, get_error};
 use std::ptr;
-use libc::{size_t, c_int, c_void, c_uint, c_uchar};
-use std::ffi::CString;
+use libc::{c_int, c_void, c_uint, size_t};
 
 /// Represents a connection to a database. Internally
 /// it holds the environment
 #[derive(Debug)]
 pub struct Connection {
     environment: *mut OCIEnv,
+    server: *mut OCIServer,
 }
 impl Connection {
     /// Creates a new Connection.
     /// # Errors
     /// Any errors encounter when trying to allocate
     pub fn new() -> Result<Connection, OciError> {
-        match create_environment_handle() {
-            Ok(env) => Ok(Connection { environment: env }),
-            Err(err) => Err(err),
-        }
+        let env = create_environment_handle()?;
+        let server = create_server_handle(env)?;
+        Ok(Connection {
+            environment: env,
+            server: server,
+        })
     }
 }
 
@@ -55,5 +57,22 @@ fn create_environment_handle() -> Result<*mut OCIEnv, OciError> {
         Ok(env)
     } else {
         Err(get_error(env as *mut c_void, ErrorHandleType::Environment))
+    }
+}
+
+fn create_server_handle(env: *const OCIEnv) -> Result<*mut OCIServer, OciError> {
+
+    let mut server: *mut OCIServer = ptr::null_mut();
+    let mut usrmempp: *mut c_void = ptr::null_mut();
+    let server_result = unsafe {
+        OCIHandleAlloc(env as *const c_void,
+                       &mut server,
+                       OCI_HTYPE_SERVER,
+                       0 as size_t,
+                       &usrmempp)
+    };
+    match server_result.to_return_code() {
+        ReturnCode::Success => Ok(server),
+        _ => Err(get_error(env as *mut c_void, ErrorHandleType::Environment)),
     }
 }

@@ -1,21 +1,45 @@
-use libc::{c_uint, c_int, c_void, size_t, c_uchar};
+use libc::{c_uint, c_int, c_void, c_uchar, size_t};
 
 pub const OCI_DEFAULT: c_uint = 0;
 
 pub const OCI_HTYPE_ENV: c_uint = 1;
 pub const OCI_HTYPE_ERROR: c_uint = 2;
+pub const OCI_HTYPE_SERVER: c_uint = 8;
 
 pub const OCI_SUCCESS: c_int = 0;
 pub const OCI_ERROR: c_int = -1;
 pub const OCI_NO_DATA: c_int = 100;
+
 
 #[derive(Debug)]
 pub enum OCIEnv {}
 #[derive(Debug)]
 pub enum OCIServer {}
 
+#[derive(Debug)]
+pub enum ReturnCode {
+    Success,
+    Error,
+    NoData,
+}
+
+pub trait ToReturnCode {
+    fn to_return_code(&self) -> ReturnCode;
+}
+
+impl ToReturnCode for c_int {
+    fn to_return_code(&self) -> ReturnCode {
+        match *self {
+            OCI_SUCCESS => ReturnCode::Success,
+            OCI_ERROR => ReturnCode::Error,
+            OCI_NO_DATA => ReturnCode::NoData,
+            _ => ReturnCode::Error,
+        }
+    }
+}
+
 #[derive(Debug, Copy, Clone)]
-pub enum ErrorHandleType{
+pub enum ErrorHandleType {
     Error = OCI_HTYPE_ERROR as isize,
     Environment = OCI_HTYPE_ENV as isize,
 }
@@ -44,13 +68,18 @@ extern "C" {
                         //usrmempp: &*mut c_void)
                         usrmempp: *const c_void)
                         -> c_int;
-    
+
     /// Frees a handle and deallocates the memory. Any child handles are automatically
     /// freed as well.
     /// See [Oracle docs](https://docs.oracle.com/database/122/
     /// LNOCI/handle-and-descriptor-functions.htm#LNOCI17135) for more info.
-    pub fn OCIHandleFree(hndlp: *mut c_void,
-                         hnd_type: c_uint) -> c_int;
+    pub fn OCIHandleFree(hndlp: *mut c_void, hnd_type: c_uint) -> c_int;
+
+    pub fn OCIHandleAlloc(parenth: *const c_void,
+                          hndlpp: &*mut c_void,
+                          hnd_type: c_uint,
+                          xtramem_sz: size_t,
+                          usrmempp: &*mut c_void) -> c_int;
 
     pub fn OCIErrorGet(hndlp: *mut c_void,
                        recordno: c_uint,

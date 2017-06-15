@@ -4,7 +4,9 @@ use std::fmt;
 use std::ffi::NulError;
 use libc::{c_uint, c_uchar, c_int, c_void};
 use std::ptr;
-use oci_bindings::{OCIErrorGet, ErrorHandleType, OCI_NO_DATA};
+use oci_bindings::{OCIErrorGet, ErrorHandleType, ReturnCode, ToReturnCode};
+
+const MAX_ERROR_MESSAGE_SIZE: usize = 3024;
 
 #[derive(Debug)]
 pub enum OciError {
@@ -70,15 +72,13 @@ impl fmt::Display for ErrorRecord {
 
 pub fn get_error(handle: *mut c_void, handle_type: ErrorHandleType) -> OciError {
 
-    let record_nmb: c_uint = 1;
+    let mut record_nmb: c_uint = 1;
     let sql_state: *mut c_uchar = ptr::null_mut();
-    let buffer_size: c_uint = 1024;
     let mut error_record = ErrorRecord::new();
 
     loop {
-
         let mut error_code: c_int = 0;
-        let mut error_message: [c_uchar; 1024] = [0; 1024];
+        let mut error_message: [c_uchar; MAX_ERROR_MESSAGE_SIZE] = [0; MAX_ERROR_MESSAGE_SIZE];
         let error_message_ptr = error_message.as_mut_ptr();
         let error_result = unsafe {
             OCIErrorGet(handle,
@@ -86,28 +86,28 @@ pub fn get_error(handle: *mut c_void, handle_type: ErrorHandleType) -> OciError 
                         sql_state,
                         &mut error_code,
                         error_message_ptr,
-                        buffer_size,
+                        MAX_ERROR_MESSAGE_SIZE as c_uint,
                         handle_type as c_uint)
         };
-        if error_result == OCI_NO_DATA {
-            break;
-        }
-        match error_result {
-            OCI_NO_DATA => break,
-            OCI_SUCCESS => {
-                let mut oracle_error_text = match String::from_utf8(Vec::from(&error_message
-                                                                                   [..])) {
+        match error_result.to_return_code() {
+            ReturnCode::NoData => break,
+            ReturnCode::Success => {
+                let oracle_error_text = match String::from_utf8(Vec::from(&error_message[..])) {
                     Ok(text) => text,
                     Err(err) => {
-                        "Oracle error text is unreadable due to it not being utf8".to_string()
+                        format!("Oracle error text is unreadable due
+                                to it not being utf8: {}",
+                                err)
+                            .to_string()
                     } 
                 };
                 error_record.add_error(error_code, oracle_error_text)
             }
-            OCI_ERROR => {
+            ReturnCode::Error => {
                 error_record.add_error(error_code, "Call to OCIErrorGet failed".to_string())
             }
         }
+        record_nmb += 1;
     }
     OciError::Oracle(error_record)
 }
