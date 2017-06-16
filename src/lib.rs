@@ -9,7 +9,7 @@ mod tests {
 
     #[test]
     fn create_connection() {
-        let conn = match Connection::new() {
+        let conn = match Connection::new("localhost:1521/xe") {
             Ok(conn) => conn,
             Err(err) => panic!("Failed to create a connection: {}", err),
         };

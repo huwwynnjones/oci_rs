@@ -1,20 +1,44 @@
 use libc::{c_uint, c_int, c_void, c_uchar, size_t};
 
-pub const OCI_DEFAULT: c_uint = 0;
+const OCI_DEFAULT: c_uint = 0;
 
-pub const OCI_HTYPE_ENV: c_uint = 1;
-pub const OCI_HTYPE_ERROR: c_uint = 2;
-pub const OCI_HTYPE_SERVER: c_uint = 8;
+const OCI_HTYPE_ENV: c_uint = 1;
+const OCI_HTYPE_ERROR: c_uint = 2;
+const OCI_HTYPE_SERVER: c_uint = 8;
 
-pub const OCI_SUCCESS: c_int = 0;
-pub const OCI_ERROR: c_int = -1;
-pub const OCI_NO_DATA: c_int = 100;
+const OCI_SUCCESS: c_int = 0;
+const OCI_ERROR: c_int = -1;
+const OCI_NO_DATA: c_int = 100;
 
 
 #[derive(Debug)]
 pub enum OCIEnv {}
 #[derive(Debug)]
 pub enum OCIServer {}
+#[derive(Debug)]
+pub enum OCIError {}
+#[derive(Debug)]
+pub enum OCISvcCtx {}
+
+#[derive(Debug)]
+pub enum EnvironmentMode {
+    Default,
+}
+impl EnvironmentMode {
+    pub fn to_environment_code(&self) -> c_uint {
+        match *self {
+            EnvironmentMode::Default => OCI_DEFAULT,
+        }
+    }
+}
+
+impl From<EnvironmentMode> for c_uint {
+    fn from(mode: EnvironmentMode) -> Self {
+        match mode {
+            EnvironmentMode::Default => OCI_DEFAULT,
+        }
+    }
+}
 
 #[derive(Debug)]
 pub enum ReturnCode {
@@ -23,13 +47,9 @@ pub enum ReturnCode {
     NoData,
 }
 
-pub trait ToReturnCode {
-    fn to_return_code(&self) -> ReturnCode;
-}
-
-impl ToReturnCode for c_int {
-    fn to_return_code(&self) -> ReturnCode {
-        match *self {
+impl From<c_int> for ReturnCode {
+    fn from(number: c_int) -> Self {
+        match number {
             OCI_SUCCESS => ReturnCode::Success,
             OCI_ERROR => ReturnCode::Error,
             OCI_NO_DATA => ReturnCode::NoData,
@@ -39,9 +59,20 @@ impl ToReturnCode for c_int {
 }
 
 #[derive(Debug, Copy, Clone)]
-pub enum ErrorHandleType {
-    Error = OCI_HTYPE_ERROR as isize,
-    Environment = OCI_HTYPE_ENV as isize,
+pub enum HandleType {
+    Error,
+    Environment,
+    Server,
+}
+
+impl From<HandleType> for c_uint {
+    fn from(handle_type: HandleType) -> Self {
+        match handle_type {
+            HandleType::Error => OCI_HTYPE_ERROR,
+            HandleType::Environment => OCI_HTYPE_ENV,
+            HandleType::Server => OCI_HTYPE_SERVER,
+        }
+    }
 }
 
 #[link(name="clntsh")]
@@ -51,7 +82,9 @@ extern "C" {
     /// that user defined memory functions are not supported. I don't know how
     /// to specify function pointers in the signature but then send in null pointers
     /// when calling. Any attempt so far has been thwarted by the type system.
+    ///
     /// # Safety
+    ///
     /// C function so is unsafe.
     pub fn OCIEnvCreate(envhpp: &*mut OCIEnv,
                         mode: c_uint,
@@ -63,8 +96,7 @@ extern "C" {
                         raloc_cb: *const c_void,
                         //mfree_cb: extern "C" fn(*const c_void, *const c_void) -> *const c_void,
                         mfree_cb: *const c_void,
-                        //xtramemsz: size_t,
-                        xtramemsz: *const c_void,
+                        xtramemsz: size_t,
                         //usrmempp: &*mut c_void)
                         usrmempp: *const c_void)
                         -> c_int;
@@ -73,14 +105,37 @@ extern "C" {
     /// freed as well.
     /// See [Oracle docs](https://docs.oracle.com/database/122/
     /// LNOCI/handle-and-descriptor-functions.htm#LNOCI17135) for more info.
+    ///
+    /// # Safety
+    ///
+    /// Unsafe C
     pub fn OCIHandleFree(hndlp: *mut c_void, hnd_type: c_uint) -> c_int;
 
+    /// Allocates handles. As in OCIEnvCreate it allows user defined memory
+    /// but I have effectively disabled that by setting the usrmempp parameter
+    /// as a null pointer. Same problem, I don't know how to specifiy a function
+    /// pointer by send in a null pointer when calling.
+    /// See [Oracle docs](https://docs.oracle.com/database/122/
+    /// LNOCI/handle-and-descriptor-functions.htm#LNOCI17134) for more info.
+    ///
+    /// # Safety
+    ///
+    /// Unsafe C
     pub fn OCIHandleAlloc(parenth: *const c_void,
                           hndlpp: &*mut c_void,
                           hnd_type: c_uint,
                           xtramem_sz: size_t,
-                          usrmempp: &*mut c_void) -> c_int;
+                          //usrmempp: &*mut c_void
+                          usrmempp: *const c_void)
+                          -> c_int;
 
+    /// Gets an error record. The sqlstate parameter is unused.
+    /// See [Oracle docs](https://docs.oracle.com/database/122/
+    /// LNOCI/miscellaneous-functions.htm#GUID-4B99087C-74F6-498A-8310-D6645172390A) for more info.
+    ///
+    /// # Safety
+    ///
+    /// Unsafe C
     pub fn OCIErrorGet(hndlp: *mut c_void,
                        recordno: c_uint,
                        sqlstate: *mut c_uchar,
@@ -89,5 +144,30 @@ extern "C" {
                        bufsiz: c_uint,
                        hnd_type: c_uint)
                        -> c_int;
+
+    /// Connects to the database.
+    /// See [Oracle docs](https://docs.oracle.com/database/122/
+    /// LNOCI/connect-authorize-and-initialize-functions.htm#LNOCI17119) for more info.
+    /// 
+    /// # Safety
+    /// 
+    /// Unsafe C
+    pub fn OCIServerAttach(srvhp: *mut OCIServer,
+                           errhp: *mut OCIError,
+                           dblink: *const c_uchar,
+                           dblink_len: c_int,
+                           mode: c_uint) -> c_int;
+    
+    /// Disconnects the database. Must be called during disconnection or else
+    /// will leave zombie processes running in the OS.
+    /// See [Oracle docs](https://docs.oracle.com/database/122/
+    /// LNOCI/connect-authorize-and-initialize-functions.htm#LNOCI17121 for more info.
+    /// 
+    /// # Safety
+    /// 
+    /// Unsafe C
+    pub fn OCIServerDetach(srvhp: *mut OCIServer,
+                           errhp: *mut OCIError,
+                           mode: c_uint) -> c_int;
 
 }
