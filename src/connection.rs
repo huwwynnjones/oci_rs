@@ -31,6 +31,14 @@ impl Connection {
     ///
     /// # Examples
     ///
+    ///```rust,no_run
+    /// use oci_rs::connection::Connection;
+    /// 
+    /// let connection = Connection::new("localhost:1521/xe",
+    ///                                  "user",
+    ///                                  "password")
+    ///                                  .expect("Something went wrong"); 
+    ///```
     pub fn new(connection_str: &str,
                user_name: &str,
                password: &str)
@@ -63,8 +71,11 @@ impl Connection {
 }
 
 impl Drop for Connection {
-    /// Frees the handles allocated by the OCI library.
-    ///
+    /// Ends the current user session, disconnects from the
+    /// database and frees the handles allocated by the OCI library.
+    /// This should ensure there are no remaining processes or memory
+    /// allocated.
+    /// 
     /// # Panics
     ///
     /// Panics if the resources can't be freed. This would be
