@@ -1,7 +1,7 @@
 use oci_bindings::{OCIEnv, OCIEnvCreate, HandleType, OCIHandleFree, OCIServer, OCIHandleAlloc,
                    ReturnCode, EnvironmentMode, OCIError, OCISvcCtx, OCIServerAttach,
                    OCIServerDetach, AttributeType, OCIAttrSet, OCISession, OCISessionBegin,
-                   CredentialsType};
+                   CredentialsType, OCISessionEnd};
 use oci_error::{OciError, get_error};
 use std::ptr;
 use libc::{c_void, size_t, c_int, c_uint};
@@ -38,11 +38,11 @@ impl Connection {
         let env = create_environment_handle()?;
         let server = create_server_handle(env)?;
         let error = create_error_handle(env)?;
+        let service = create_service_handle(env, server, error)?;
+        let session = create_user_session_handle(env)?;
         if let Some(err) = connect_to_database(server, error, connection_str) {
             return Err(err);
         }
-        let service = create_service_handle(env, server, error)?;
-        let session = create_user_session(env)?;
         if let Some(err) = set_user_name(session, user_name, error) {
             return Err(err);
         }
@@ -70,6 +70,18 @@ impl Drop for Connection {
     /// Panics if the resources can't be freed. This would be
     /// a failure of the underlying OCIHandleFree function.
     fn drop(&mut self) {
+        let session_end_result = unsafe {
+            OCISessionEnd(self.service,
+                          self.error,
+                          self.user_session,
+                          EnvironmentMode::Default.into())
+        };
+
+        match session_end_result.into() {
+            ReturnCode::Success => (),
+            _ => println!("Could not end user session"), //log instead in future
+        }
+
         let disconnect_result =
             unsafe { OCIServerDetach(self.server, self.error, EnvironmentMode::Default.into()) };
 
@@ -154,8 +166,8 @@ fn create_service_handle(env: *const OCIEnv,
     }
 }
 
-/// create sesion handle, set user name and password and then start session
-fn create_user_session(env: *const OCIEnv) -> Result<*mut OCISession, OciError> {
+/// create sesion handle
+fn create_user_session_handle(env: *const OCIEnv) -> Result<*mut OCISession, OciError> {
     match allocate_handle(env, HandleType::Session) {
         Ok(session) => Ok(session as *mut OCISession),
         Err(err) => Err(err),
@@ -293,8 +305,8 @@ fn start_user_session(service: *mut OCISvcCtx,
         OCISessionBegin(service,
                         error,
                         session,
-                        CredentialsType::Rdbms.into(), 
-                        EnvironmentMode::Default.into()) 
+                        CredentialsType::Rdbms.into(),
+                        EnvironmentMode::Default.into())
     };
 
     match session_result.into() {

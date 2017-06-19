@@ -118,7 +118,7 @@ impl From<AttributeType> for c_uint {
 }
 
 #[derive(Debug)]
-pub enum CredentialsType{
+pub enum CredentialsType {
     Rdbms,
 }
 
@@ -245,15 +245,29 @@ extern "C" {
     /// See [Oracle docs](https://docs.oracle.com/database/122/LNOCI/
     /// connect-authorize-and-initialize-functions.htm#GUID-31B1FDB3-056E-4AF9-9B89-8DA6AA156947)
     /// for more info.
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// Unsafe C
     pub fn OCISessionBegin(svchp: *mut OCISvcCtx,
                            errhp: *mut OCIError,
                            userhp: *mut OCISession,
                            credt: c_uint,
-                           mode: c_uint) -> c_int;
+                           mode: c_uint)
+                           -> c_int;
+
+    /// Stops a user session.
+    /// See [Oracle docs](https://docs.oracle.com/database/122/LNOCI/
+    /// connect-authorize-and-initialize-functions.htm#LNOCI17123) for more info.
+    ///
+    /// # Safety
+    ///
+    /// Unsafe C
+    pub fn OCISessionEnd(svchp: *mut OCISvcCtx,
+                         errhp: *mut OCIError,
+                         userhp: *mut OCISession,
+                         mode: c_uint)
+                         -> c_int;
 
 
 }
