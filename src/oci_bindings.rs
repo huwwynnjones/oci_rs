@@ -4,12 +4,19 @@ const OCI_DEFAULT: c_uint = 0;
 
 const OCI_HTYPE_ENV: c_uint = 1;
 const OCI_HTYPE_ERROR: c_uint = 2;
+const OCI_HTYPE_SVCCTX: c_uint = 3;
 const OCI_HTYPE_SERVER: c_uint = 8;
+const OCI_HTYPE_SESSION: c_uint = 9;
 
 const OCI_SUCCESS: c_int = 0;
 const OCI_ERROR: c_int = -1;
 const OCI_NO_DATA: c_int = 100;
 
+const OCI_ATTR_SERVER: c_uint = 6;
+const OCI_ATTR_USERNAME: c_uint = 22;
+const OCI_ATTR_PASSWORD: c_uint = 23;
+
+const OCI_CRED_RDBMS: c_uint = 1;
 
 #[derive(Debug)]
 pub enum OCIEnv {}
@@ -19,6 +26,8 @@ pub enum OCIServer {}
 pub enum OCIError {}
 #[derive(Debug)]
 pub enum OCISvcCtx {}
+#[derive(Debug)]
+pub enum OCISession {}
 
 #[derive(Debug)]
 pub enum EnvironmentMode {
@@ -63,6 +72,8 @@ pub enum HandleType {
     Error,
     Environment,
     Server,
+    Service,
+    Session,
 }
 
 impl From<HandleType> for c_uint {
@@ -71,6 +82,50 @@ impl From<HandleType> for c_uint {
             HandleType::Error => OCI_HTYPE_ERROR,
             HandleType::Environment => OCI_HTYPE_ENV,
             HandleType::Server => OCI_HTYPE_SERVER,
+            HandleType::Service => OCI_HTYPE_SVCCTX,
+            HandleType::Session => OCI_HTYPE_SESSION,
+        }
+    }
+}
+
+impl<'hnd> From<HandleType> for &'hnd str {
+    fn from(handle_type: HandleType) -> Self {
+        match handle_type {
+            HandleType::Error => "Error handle",
+            HandleType::Environment => "Environment handle",
+            HandleType::Server => "Server handle",
+            HandleType::Service => "Service handle",
+            HandleType::Session => "Session handle",
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum AttributeType {
+    Server,
+    UserName,
+    Password,
+}
+
+impl From<AttributeType> for c_uint {
+    fn from(attribute_type: AttributeType) -> Self {
+        match attribute_type {
+            AttributeType::Server => OCI_ATTR_SERVER,
+            AttributeType::UserName => OCI_ATTR_USERNAME,
+            AttributeType::Password => OCI_ATTR_PASSWORD,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum CredentialsType{
+    Rdbms,
+}
+
+impl From<CredentialsType> for c_uint {
+    fn from(credentials_type: CredentialsType) -> Self {
+        match credentials_type {
+            CredentialsType::Rdbms => OCI_CRED_RDBMS,
         }
     }
 }
@@ -148,26 +203,57 @@ extern "C" {
     /// Connects to the database.
     /// See [Oracle docs](https://docs.oracle.com/database/122/
     /// LNOCI/connect-authorize-and-initialize-functions.htm#LNOCI17119) for more info.
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// Unsafe C
     pub fn OCIServerAttach(srvhp: *mut OCIServer,
                            errhp: *mut OCIError,
                            dblink: *const c_uchar,
                            dblink_len: c_int,
-                           mode: c_uint) -> c_int;
-    
+                           mode: c_uint)
+                           -> c_int;
+
     /// Disconnects the database. Must be called during disconnection or else
     /// will leave zombie processes running in the OS.
     /// See [Oracle docs](https://docs.oracle.com/database/122/
-    /// LNOCI/connect-authorize-and-initialize-functions.htm#LNOCI17121 for more info.
+    /// LNOCI/connect-authorize-and-initialize-functions.htm#LNOCI17121) for more info.
+    ///
+    /// # Safety
+    ///
+    /// Unsafe C
+    pub fn OCIServerDetach(srvhp: *mut OCIServer, errhp: *mut OCIError, mode: c_uint) -> c_int;
+
+    /// Sets the value of an attribute of a handle, e.g. username in session
+    /// handle.
+    /// See [Oracle docs](https://docs.oracle.com/database/122/LNOCI/
+    /// handle-and-descriptor-functions.htm#GUID-3741D7BD-7652-4D7A-8813-AC2AEA8D3B03)
+    /// for more info.
+    ///
+    /// # Safety
+    ///
+    /// Unsafe C
+    pub fn OCIAttrSet(trgthndlp: *mut c_void,
+                      trghndltyp: c_uint,
+                      attributep: *mut c_void,
+                      size: c_uint,
+                      attrtype: c_uint,
+                      errhp: *mut OCIError)
+                      -> c_int;
+
+    /// Creates and starts a user session.
+    /// See [Oracle docs](https://docs.oracle.com/database/122/LNOCI/
+    /// connect-authorize-and-initialize-functions.htm#GUID-31B1FDB3-056E-4AF9-9B89-8DA6AA156947)
+    /// for more info.
     /// 
     /// # Safety
     /// 
     /// Unsafe C
-    pub fn OCIServerDetach(srvhp: *mut OCIServer,
+    pub fn OCISessionBegin(svchp: *mut OCISvcCtx,
                            errhp: *mut OCIError,
+                           userhp: *mut OCISession,
+                           credt: c_uint,
                            mode: c_uint) -> c_int;
+
 
 }

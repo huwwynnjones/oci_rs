@@ -1,9 +1,10 @@
 use oci_bindings::{OCIEnv, OCIEnvCreate, HandleType, OCIHandleFree, OCIServer, OCIHandleAlloc,
                    ReturnCode, EnvironmentMode, OCIError, OCISvcCtx, OCIServerAttach,
-                   OCIServerDetach};
+                   OCIServerDetach, AttributeType, OCIAttrSet, OCISession, OCISessionBegin,
+                   CredentialsType};
 use oci_error::{OciError, get_error};
 use std::ptr;
-use libc::{c_void, size_t, c_int};
+use libc::{c_void, size_t, c_int, c_uint};
 
 /// Represents a connection to a database. Internally
 /// it holds the various handles that are needed to maintain
@@ -16,6 +17,7 @@ pub struct Connection {
     server: *mut OCIServer,
     error: *mut OCIError,
     service: *mut OCISvcCtx,
+    user_session: *mut OCISession,
 }
 impl Connection {
     /// Creates a new Connection.
@@ -29,12 +31,25 @@ impl Connection {
     ///
     /// # Examples
     ///
-    pub fn new(connection_str: &str) -> Result<Connection, OciError> {
+    pub fn new(connection_str: &str,
+               user_name: &str,
+               password: &str)
+               -> Result<Connection, OciError> {
         let env = create_environment_handle()?;
         let server = create_server_handle(env)?;
         let error = create_error_handle(env)?;
-        let service = create_service_handle(env)?;
         if let Some(err) = connect_to_database(server, error, connection_str) {
+            return Err(err);
+        }
+        let service = create_service_handle(env, server, error)?;
+        let session = create_user_session(env)?;
+        if let Some(err) = set_user_name(session, user_name, error) {
+            return Err(err);
+        }
+        if let Some(err) = set_password(session, password, error) {
+            return Err(err);
+        }
+        if let Some(err) = start_user_session(service, error, session) {
             return Err(err);
         }
         Ok(Connection {
@@ -42,16 +57,17 @@ impl Connection {
             server: server,
             error: error,
             service: service,
+            user_session: session,
         })
     }
 }
 
 impl Drop for Connection {
     /// Frees the handles allocated by the OCI library.
-    /// 
+    ///
     /// # Panics
-    /// 
-    /// Panics if the resources can't be freed. This would be 
+    ///
+    /// Panics if the resources can't be freed. This would be
     /// a failure of the underlying OCIHandleFree function.
     fn drop(&mut self) {
         let disconnect_result =
@@ -102,66 +118,139 @@ fn create_environment_handle() -> Result<*mut OCIEnv, OciError> {
 
 /// Creates a server handle
 fn create_server_handle(env: *const OCIEnv) -> Result<*mut OCIServer, OciError> {
-    let mut server: *mut c_void = ptr::null_mut();
-    let xtramem_sz: size_t = 0;
-    let null_ptr = ptr::null();
-    let server_result = unsafe {
-        OCIHandleAlloc(env as *const c_void,
-                       &mut server,
-                       HandleType::Server.into(),
-                       xtramem_sz,
-                       null_ptr)
-    };
-    match server_result.into() {
-        ReturnCode::Success => Ok(server as *mut OCIServer),
-        _ => {
-            Err(get_error(env as *mut c_void,
-                          HandleType::Environment,
-                          "Server handle creation"))
-        }
+    match allocate_handle(env, HandleType::Server) {
+        Ok(server) => Ok(server as *mut OCIServer),
+        Err(err) => Err(err),
     }
 }
 
 /// Creates a error handle
 fn create_error_handle(env: *const OCIEnv) -> Result<*mut OCIError, OciError> {
-    let mut error: *mut c_void = ptr::null_mut();
-    let xtramem_sz: size_t = 0;
-    let null_ptr = ptr::null();
-    let error_result = unsafe {
-        OCIHandleAlloc(env as *const c_void,
-                       &mut error,
-                       HandleType::Error.into(),
-                       xtramem_sz,
-                       null_ptr)
-    };
-    match error_result.into() {
-        ReturnCode::Success => Ok(error as *mut OCIError),
-        _ => {
-            Err(get_error(env as *mut c_void,
-                          HandleType::Environment,
-                          "Error handle creation"))
-        }
+    match allocate_handle(env, HandleType::Error) {
+        Ok(error) => Ok(error as *mut OCIError),
+        Err(err) => Err(err),
     }
 }
 
 /// Creates a service handle
-fn create_service_handle(env: *const OCIEnv) -> Result<*mut OCISvcCtx, OciError> {
-    let mut service: *mut c_void = ptr::null_mut();
+fn create_service_handle(env: *const OCIEnv,
+                         server: *mut OCIServer,
+                         error: *mut OCIError)
+                         -> Result<*mut OCISvcCtx, OciError> {
+    let service_handle = match allocate_handle(env, HandleType::Service) {
+        Ok(service) => service as *mut OCISvcCtx,
+        Err(err) => return Err(err),
+    };
+    let size: c_uint = 0;
+    match set_handle_attribute(service_handle as *mut c_void,
+                               HandleType::Service,
+                               server as *mut c_void,
+                               size,
+                               AttributeType::Server,
+                               error,
+                               "Setting server in service handle") {
+        None => Ok(service_handle),
+        Some(err) => Err(err),
+    }
+}
+
+/// create sesion handle, set user name and password and then start session
+fn create_user_session(env: *const OCIEnv) -> Result<*mut OCISession, OciError> {
+    match allocate_handle(env, HandleType::Session) {
+        Ok(session) => Ok(session as *mut OCISession),
+        Err(err) => Err(err),
+    }
+}
+
+/// set user name
+fn set_user_name(session: *mut OCISession,
+                 user_name: &str,
+                 error: *mut OCIError)
+                 -> Option<OciError> {
+    let user_name_bytes = user_name.as_bytes();
+    let user_name_bytes_ptr = user_name_bytes.as_ptr();
+    let user_name_len = user_name.len() as c_uint;
+
+    match set_handle_attribute(session as *mut c_void,
+                               HandleType::Session,
+                               user_name_bytes_ptr as *mut c_void,
+                               user_name_len,
+                               AttributeType::UserName.into(),
+                               error,
+                               "Setting user name") {
+        None => None,
+        Some(err) => Some(err),
+    }
+}
+
+/// set password
+fn set_password(session: *mut OCISession,
+                password: &str,
+                error: *mut OCIError)
+                -> Option<OciError> {
+    let password_bytes = password.as_bytes();
+    let password_bytes_ptr = password_bytes.as_ptr();
+    let password_len = password.len() as c_uint;
+
+    match set_handle_attribute(session as *mut c_void,
+                               HandleType::Session,
+                               password_bytes_ptr as *mut c_void,
+                               password_len,
+                               AttributeType::Password.into(),
+                               error,
+                               "Setting password") {
+        None => None,
+        Some(err) => Some(err),
+    }
+}
+
+/// Set handle attribute
+fn set_handle_attribute(handle: *mut c_void,
+                        handle_type: HandleType,
+                        attribute_handle: *mut c_void,
+                        size: c_uint,
+                        attribute_type: AttributeType,
+                        error_handle: *mut OCIError,
+                        error_description: &str)
+                        -> Option<OciError> {
+    let attr_set_result = unsafe {
+        OCIAttrSet(handle,
+                   handle_type.into(),
+                   attribute_handle,
+                   size,
+                   attribute_type.into(),
+                   error_handle)
+    };
+    match attr_set_result.into() {
+        ReturnCode::Success => None,
+        _ => {
+            Some(get_error(error_handle as *mut c_void,
+                           HandleType::Error,
+                           error_description))
+        }
+    }
+}
+
+
+
+/// Allocate a handle
+fn allocate_handle(env: *const OCIEnv, handle_type: HandleType) -> Result<*mut c_void, OciError> {
+    let mut handle: *mut c_void = ptr::null_mut();
     let xtramem_sz: size_t = 0;
     let null_ptr = ptr::null();
-    let service_result = unsafe {
+    let allocation_result = unsafe {
         OCIHandleAlloc(env as *const c_void,
-                       &mut service,
-                       HandleType::Error.into(),
+                       &mut handle,
+                       handle_type.into(),
                        xtramem_sz,
                        null_ptr)
     };
-    match service_result.into() {
-        ReturnCode::Success => Ok(service as *mut OCISvcCtx),
+    match allocation_result.into() {
+        ReturnCode::Success => Ok(handle),
         _ => {
             Err(get_error(env as *mut c_void,
                           HandleType::Environment,
-                          "Service handle creation"))
+                          handle_type.into()))
         }
     }
 }
@@ -190,6 +279,30 @@ fn connect_to_database(server: *mut OCIServer,
             Some(get_error(error as *mut c_void,
                            HandleType::Environment,
                            "Database connection"))
+        }
+    }
+}
+
+/// start user session
+fn start_user_session(service: *mut OCISvcCtx,
+                      error: *mut OCIError,
+                      session: *mut OCISession)
+                      -> Option<OciError> {
+
+    let session_result = unsafe {
+        OCISessionBegin(service,
+                        error,
+                        session,
+                        CredentialsType::Rdbms.into(), 
+                        EnvironmentMode::Default.into()) 
+    };
+
+    match session_result.into() {
+        ReturnCode::Success => None,
+        _ => {
+            Some(get_error(error as *mut c_void,
+                           HandleType::Error,
+                           "Starting user session"))
         }
     }
 }
