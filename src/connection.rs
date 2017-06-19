@@ -60,6 +60,7 @@ impl Connection {
         if let Some(err) = start_user_session(service, error, session) {
             return Err(err);
         }
+        // set user session in service
         Ok(Connection {
             environment: env,
             server: server,
