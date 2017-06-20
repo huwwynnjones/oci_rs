@@ -48,10 +48,10 @@ impl Connection {
         let error = create_error_handle(env)?;
         let service = create_service_handle(env)?;
         let session = create_session_handle(env)?;
-        set_server_in_service(service, server, error)?;
         connect_to_database(server, error, connection_str)?;
-        set_user_name(session, user_name, error)?;
-        set_password(session, password, error)?;
+        set_server_in_service(service, server, error)?;
+        set_user_name_in_session(session, user_name, error)?;
+        set_password_in_session(session, password, error)?;
         start_session(service, error, session)?;
         set_session_in_service(service, session, error)?;
         Ok(Connection {
@@ -156,8 +156,7 @@ fn create_error_handle(env: *const OCIEnv) -> Result<*mut OCIError, OciError> {
 }
 
 /// Creates a service handle
-fn create_service_handle(env: *const OCIEnv)
-                         -> Result<*mut OCISvcCtx, OciError> {
+fn create_service_handle(env: *const OCIEnv) -> Result<*mut OCISvcCtx, OciError> {
     match allocate_handle(env, HandleType::Service) {
         Ok(service) => Ok(service as *mut OCISvcCtx),
         Err(err) => return Err(err),
@@ -190,10 +189,10 @@ fn create_session_handle(env: *const OCIEnv) -> Result<*mut OCISession, OciError
 }
 
 /// set user name
-fn set_user_name(session: *mut OCISession,
-                 user_name: &str,
-                 error: *mut OCIError)
-                 -> Result<(), OciError> {
+fn set_user_name_in_session(session: *mut OCISession,
+                            user_name: &str,
+                            error: *mut OCIError)
+                            -> Result<(), OciError> {
     let user_name_bytes = user_name.as_bytes();
     let user_name_bytes_ptr = user_name_bytes.as_ptr();
     let user_name_len = user_name.len() as c_uint;
@@ -209,10 +208,10 @@ fn set_user_name(session: *mut OCISession,
 }
 
 /// set password
-fn set_password(session: *mut OCISession,
-                password: &str,
-                error: *mut OCIError)
-                -> Result<(), OciError> {
+fn set_password_in_session(session: *mut OCISession,
+                           password: &str,
+                           error: *mut OCIError)
+                           -> Result<(), OciError> {
     let password_bytes = password.as_bytes();
     let password_bytes_ptr = password_bytes.as_ptr();
     let password_len = password.len() as c_uint;
