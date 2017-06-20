@@ -46,8 +46,9 @@ impl Connection {
         let env = create_environment_handle()?;
         let server = create_server_handle(env)?;
         let error = create_error_handle(env)?;
-        let service = create_service_handle(env, server, error)?;
+        let service = create_service_handle(env)?;
         let session = create_session_handle(env)?;
+        set_server_in_service(service, server, error)?;
         connect_to_database(server, error, connection_str)?;
         set_user_name(session, user_name, error)?;
         set_password(session, password, error)?;
@@ -62,8 +63,8 @@ impl Connection {
         })
     }
 
-    /// Creates a new statement struct. A statement can only live
-    /// as long as the connection that created it.
+    /// Creates a new Statement struct. A Statement can only live
+    /// as long as the Connection that created it.
     pub fn create_statement(&self) -> Result<Statement, OciError> {
         Statement::new(self)
     }
@@ -155,25 +156,29 @@ fn create_error_handle(env: *const OCIEnv) -> Result<*mut OCIError, OciError> {
 }
 
 /// Creates a service handle
-fn create_service_handle(env: *const OCIEnv,
+fn create_service_handle(env: *const OCIEnv)
+                         -> Result<*mut OCISvcCtx, OciError> {
+    match allocate_handle(env, HandleType::Service) {
+        Ok(service) => Ok(service as *mut OCISvcCtx),
+        Err(err) => return Err(err),
+    }
+}
+
+/// set the server handle in the service handle
+fn set_server_in_service(service: *mut OCISvcCtx,
                          server: *mut OCIServer,
                          error: *mut OCIError)
-                         -> Result<*mut OCISvcCtx, OciError> {
-    let service_handle = match allocate_handle(env, HandleType::Service) {
-        Ok(service) => service as *mut OCISvcCtx,
-        Err(err) => return Err(err),
-    };
+                         -> Result<(), OciError> {
+
     let size: c_uint = 0;
-    match set_handle_attribute(service_handle as *mut c_void,
-                               HandleType::Service,
-                               server as *mut c_void,
-                               size,
-                               AttributeType::Server,
-                               error,
-                               "Setting server in service handle") {
-        Ok(_) => Ok(service_handle),
-        Err(err) => Err(err),
-    }
+    set_handle_attribute(service as *mut c_void,
+                         HandleType::Service,
+                         server as *mut c_void,
+                         size,
+                         AttributeType::Server,
+                         error,
+                         "Setting server in service handle")?;
+    Ok(())
 }
 
 /// create sesion handle
