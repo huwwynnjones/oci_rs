@@ -5,6 +5,7 @@ const OCI_DEFAULT: c_uint = 0;
 const OCI_HTYPE_ENV: c_uint = 1;
 const OCI_HTYPE_ERROR: c_uint = 2;
 const OCI_HTYPE_SVCCTX: c_uint = 3;
+const OCI_HTYPE_STMT: c_uint = 4;
 const OCI_HTYPE_SERVER: c_uint = 8;
 const OCI_HTYPE_SESSION: c_uint = 9;
 
@@ -15,6 +16,7 @@ const OCI_NO_DATA: c_int = 100;
 const OCI_ATTR_SERVER: c_uint = 6;
 const OCI_ATTR_USERNAME: c_uint = 22;
 const OCI_ATTR_PASSWORD: c_uint = 23;
+const OCI_ATTR_SESSION: c_uint = 7;
 
 const OCI_CRED_RDBMS: c_uint = 1;
 
@@ -28,6 +30,8 @@ pub enum OCIError {}
 pub enum OCISvcCtx {}
 #[derive(Debug)]
 pub enum OCISession {}
+#[derive(Debug)]
+pub enum OCIStmt {}
 
 #[derive(Debug)]
 pub enum EnvironmentMode {
@@ -74,6 +78,7 @@ pub enum HandleType {
     Server,
     Service,
     Session,
+    Statement,
 }
 
 impl From<HandleType> for c_uint {
@@ -84,6 +89,7 @@ impl From<HandleType> for c_uint {
             HandleType::Server => OCI_HTYPE_SERVER,
             HandleType::Service => OCI_HTYPE_SVCCTX,
             HandleType::Session => OCI_HTYPE_SESSION,
+            HandleType::Statement => OCI_HTYPE_STMT,
         }
     }
 }
@@ -96,6 +102,7 @@ impl<'hnd> From<HandleType> for &'hnd str {
             HandleType::Server => "Server handle",
             HandleType::Service => "Service handle",
             HandleType::Session => "Session handle",
+            HandleType::Statement => "Statement handle",
         }
     }
 }
@@ -105,6 +112,7 @@ pub enum AttributeType {
     Server,
     UserName,
     Password,
+    Session,
 }
 
 impl From<AttributeType> for c_uint {
@@ -113,6 +121,7 @@ impl From<AttributeType> for c_uint {
             AttributeType::Server => OCI_ATTR_SERVER,
             AttributeType::UserName => OCI_ATTR_USERNAME,
             AttributeType::Password => OCI_ATTR_PASSWORD,
+            AttributeType::Session => OCI_ATTR_SESSION,
         }
     }
 }
