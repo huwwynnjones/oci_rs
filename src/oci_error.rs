@@ -128,6 +128,9 @@ pub(crate) fn get_error(handle: *mut c_void,
             ReturnCode::Error => {
                 error_record.add_error(error_code, "Call to OCIErrorGet failed".to_string())
             }
+            ReturnCode::InvalidHandle => {
+                error_record.add_error(error_code, "Invalid handle used to get errors".to_string())
+            }
         }
         record_nmb += 1;
     }

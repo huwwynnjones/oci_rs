@@ -1,7 +1,8 @@
 use oci_bindings::{OCIEnv, OCIEnvCreate, HandleType, OCIHandleFree, OCIServer, OCIHandleAlloc,
                    ReturnCode, EnvironmentMode, OCIError, OCISvcCtx, OCIServerAttach,
                    OCIServerDetach, AttributeType, OCIAttrSet, OCISession, OCISessionBegin,
-                   CredentialsType, OCISessionEnd, OCIStmt};
+                   CredentialsType, OCISessionEnd, OCIStmt, OCIStmtPrepare2, SyntaxType,
+                   OCIStmtRelease, OCIStmtExecute, OCISnapshot, OCITransCommit};
 use oci_error::{OciError, get_error};
 use std::ptr;
 use libc::{c_void, size_t, c_int, c_uint};
@@ -48,11 +49,11 @@ impl Connection {
         let error = create_error_handle(env)?;
         let service = create_service_handle(env)?;
         let session = create_session_handle(env)?;
-        connect_to_database(server, error, connection_str)?;
+        connect_to_database(server, connection_str, error)?;
         set_server_in_service(service, server, error)?;
         set_user_name_in_session(session, user_name, error)?;
         set_password_in_session(session, password, error)?;
-        start_session(service, error, session)?;
+        start_session(service, session, error)?;
         set_session_in_service(service, session, error)?;
         Ok(Connection {
             environment: env,
@@ -65,8 +66,8 @@ impl Connection {
 
     /// Creates a new Statement struct. A Statement can only live
     /// as long as the Connection that created it.
-    pub fn create_statement(&self) -> Result<Statement, OciError> {
-        Statement::new(self)
+    pub fn create_prepared_statement(&self, sql: &str) -> Result<Statement, OciError> {
+        Statement::new(self, sql)
     }
 }
 
@@ -270,8 +271,6 @@ fn set_handle_attribute(handle: *mut c_void,
     }
 }
 
-
-
 /// Allocate a handle
 fn allocate_handle(env: *const OCIEnv, handle_type: HandleType) -> Result<*mut c_void, OciError> {
     let mut handle: *mut c_void = ptr::null_mut();
@@ -296,8 +295,8 @@ fn allocate_handle(env: *const OCIEnv, handle_type: HandleType) -> Result<*mut c
 
 /// Connect to the database
 fn connect_to_database(server: *mut OCIServer,
-                       error: *mut OCIError,
-                       connection_str: &str)
+                       connection_str: &str,
+                       error: *mut OCIError)
                        -> Result<(), OciError> {
     let conn_bytes = connection_str.as_bytes();
     let conn_bytes_ptr = conn_bytes.as_ptr();
@@ -323,8 +322,8 @@ fn connect_to_database(server: *mut OCIServer,
 
 /// start user session
 fn start_session(service: *mut OCISvcCtx,
-                 error: *mut OCIError,
-                 session: *mut OCISession)
+                 session: *mut OCISession,
+                 error: *mut OCIError)
                  -> Result<(), OciError> {
 
     let session_result = unsafe {
@@ -349,24 +348,122 @@ fn start_session(service: *mut OCISvcCtx,
 pub struct Statement<'conn> {
     connection: &'conn Connection,
     statement: *mut OCIStmt,
-    error: *mut OCIError,
 }
 impl<'conn> Statement<'conn> {
-    fn new(connection: &'conn Connection) -> Result<Self, OciError> {
-        let error = create_error_handle(connection.environment)?;
-        let statement = create_statement_handle(connection.environment)?;
+    fn new(connection: &'conn Connection, sql: &str) -> Result<Self, OciError> {
+        let statement = prepare_statement(connection, sql)?;
         Ok(Statement {
             connection: connection,
             statement: statement,
-            error: error,
         })
+    }
+
+    pub fn execute(&self) -> Result<(), OciError> {
+        let iters = 1 as c_uint;
+        let rowoff = 0 as c_uint;
+        let snap_in: *const OCISnapshot = ptr::null();
+        let snap_out: *mut OCISnapshot = ptr::null_mut();
+        let execute_result = unsafe {
+            OCIStmtExecute(self.connection.service,
+                           self.statement,
+                           self.connection.error,
+                           iters,
+                           rowoff,
+                           snap_in,
+                           snap_out,
+                           EnvironmentMode::Default.into())
+        };
+        match execute_result.into() {
+            ReturnCode::Success => Ok(()),
+            _ => {
+                Err(get_error(self.connection.error as *mut c_void,
+                              HandleType::Error,
+                              "Executing statement"))
+            }
+        }
+    }
+
+    pub fn commit(&self) -> Result<(), OciError> {
+        let commit_result = unsafe {
+            OCITransCommit(self.connection.service,
+                           self.connection.error,
+                           EnvironmentMode::Default.into())
+        };
+        match commit_result.into() {
+            ReturnCode::Success => Ok(()),
+            _ => {
+                Err(get_error(self.connection.error as *mut c_void,
+                              HandleType::Error,
+                              "Commiting statement"))
+            }
+        }
     }
 }
 
-/// create statement handle
-fn create_statement_handle(env: *const OCIEnv) -> Result<*mut OCIStmt, OciError> {
-    match allocate_handle(env, HandleType::Statement) {
-        Ok(stmt) => Ok(stmt as *mut OCIStmt),
-        Err(err) => Err(err),
+impl<'conn> Drop for Statement<'conn> {
+    /// Frees any internal handles allocated by the OCI library.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the resources can't be freed. This would be
+    /// a failure of the underlying OCIStmtRelease function.
+    fn drop(&mut self) {
+        if let Err(err) = release_statement(self.statement, self.connection.error) {
+            panic!(format!("Could not release the statement Statement: {}", err))
+        }
+
+    }
+}
+
+// release statement
+fn release_statement(statement: *mut OCIStmt, error: *mut OCIError) -> Result<(), OciError> {
+
+    let key_ptr = ptr::null();
+    let key_len = 0 as c_uint;
+    let release_result = unsafe {
+        OCIStmtRelease(statement,
+                       error,
+                       key_ptr,
+                       key_len,
+                       EnvironmentMode::Default.into())
+    };
+
+    match release_result.into() {
+        ReturnCode::Success => Ok(()),
+        _ => {
+            Err(get_error(error as *mut c_void,
+                          HandleType::Error,
+                          "Releasing statement"))
+        }
+    }
+}
+
+/// create statement handle and prepare sql
+fn prepare_statement(connection: &Connection, sql: &str) -> Result<*mut OCIStmt, OciError> {
+    let statement: *mut OCIStmt = ptr::null_mut();
+    let sql_bytes = sql.as_bytes();
+    let sql_bytes_ptr = sql_bytes.as_ptr();
+    let sql_len = sql.len() as c_uint;
+    let key_ptr = ptr::null();
+    let key_len = 0 as c_uint;
+    let prepare_result = unsafe {
+        OCIStmtPrepare2(connection.service,
+                        &statement,
+                        connection.error,
+                        sql_bytes_ptr,
+                        sql_len,
+                        key_ptr,
+                        key_len,
+                        SyntaxType::Ntv.into(),
+                        EnvironmentMode::Default.into())
+    };
+
+    match prepare_result.into() {
+        ReturnCode::Success => Ok(statement),
+        _ => {
+            let mut err_txt = String::from("Preparing statement: ");
+            err_txt.push_str(sql);
+            Err(get_error(connection.error as *mut c_void, HandleType::Error, &err_txt))
+        }
     }
 }

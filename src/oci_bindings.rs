@@ -12,6 +12,7 @@ const OCI_HTYPE_SESSION: c_uint = 9;
 const OCI_SUCCESS: c_int = 0;
 const OCI_ERROR: c_int = -1;
 const OCI_NO_DATA: c_int = 100;
+const OCI_INVALID_HANDLE: c_int = -2;
 
 const OCI_ATTR_SERVER: c_uint = 6;
 const OCI_ATTR_USERNAME: c_uint = 22;
@@ -19,6 +20,8 @@ const OCI_ATTR_PASSWORD: c_uint = 23;
 const OCI_ATTR_SESSION: c_uint = 7;
 
 const OCI_CRED_RDBMS: c_uint = 1;
+
+const OCI_NTV_SYNTAX: c_uint = 1;
 
 #[derive(Debug)]
 pub enum OCIEnv {}
@@ -32,6 +35,8 @@ pub enum OCISvcCtx {}
 pub enum OCISession {}
 #[derive(Debug)]
 pub enum OCIStmt {}
+#[derive(Debug)]
+pub enum OCISnapshot {}
 
 #[derive(Debug)]
 pub enum EnvironmentMode {
@@ -58,6 +63,7 @@ pub enum ReturnCode {
     Success,
     Error,
     NoData,
+    InvalidHandle,
 }
 
 impl From<c_int> for ReturnCode {
@@ -66,6 +72,7 @@ impl From<c_int> for ReturnCode {
             OCI_SUCCESS => ReturnCode::Success,
             OCI_ERROR => ReturnCode::Error,
             OCI_NO_DATA => ReturnCode::NoData,
+            OCI_INVALID_HANDLE => ReturnCode::InvalidHandle,
             _ => ReturnCode::Error,
         }
     }
@@ -135,6 +142,19 @@ impl From<CredentialsType> for c_uint {
     fn from(credentials_type: CredentialsType) -> Self {
         match credentials_type {
             CredentialsType::Rdbms => OCI_CRED_RDBMS,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum SyntaxType {
+    Ntv,
+}
+
+impl From<SyntaxType> for c_uint {
+    fn from(syntax_type: SyntaxType) -> Self {
+        match syntax_type {
+            SyntaxType::Ntv => OCI_NTV_SYNTAX,
         }
     }
 }
@@ -277,6 +297,67 @@ extern "C" {
                          userhp: *mut OCISession,
                          mode: c_uint)
                          -> c_int;
+
+    /// Prepares a SQL or PL/SQL statement for execution. The user has the option of using
+    /// the statement cache, if it has been enabled.
+    /// See [Oracle docs](https://docs.oracle.com/database/122/LNOCI/
+    /// statement-functions.htm#LNOCI17168) for more info.
+    ///
+    /// # Safety
+    ///
+    /// Unsafe C
+    pub fn OCIStmtPrepare2(svchp: *mut OCISvcCtx,
+                           stmthp: &*mut OCIStmt,
+                           errhp: *mut OCIError,
+                           stmttext: *const c_uchar,
+                           stmt_len: c_uint,
+                           key: *const c_uchar,
+                           keylen: c_uint,
+                           language: c_uint,
+                           mode: c_uint)
+                           -> c_int;
+
+    /// Releases the statement handle obtained by a call to OCIStmtPrepare2().
+    /// See [Oracle docs](https://docs.oracle.com/database/122/LNOCI/
+    /// statement-functions.htm#LNOCI17169) for more info.
+    ///
+    /// # Safety
+    ///
+    /// Unsafe C
+    pub fn OCIStmtRelease(stmthp: *mut OCIStmt,
+                          errhp: *mut OCIError,
+                          key: *const c_uchar,
+                          keylen: c_uint,
+                          mode: c_uint)
+                          -> c_int;
+
+    /// Executes a statement.
+    /// See [Oracle docs](https://docs.oracle.com/database/122/LNOCI/
+    /// statement-functions.htm#LNOCI17163) for more info.
+    /// 
+    /// # Safety
+    /// 
+    /// Unsafe C
+    pub fn OCIStmtExecute(svchp: *mut OCISvcCtx,
+                          stmtp: *mut OCIStmt,
+                          errhp: *mut OCIError,
+                          iters: c_uint,
+                          rowoff: c_uint,
+                          snap_in: *const OCISnapshot,
+                          snap_out: *mut OCISnapshot,
+                          mode: c_uint) -> c_int;
+
+    /// Commits the transaction associated with a specified service context.
+    /// See [Oracle docs](https://docs.oracle.com/cd/E11882_01/appdev.112/e10646/
+    /// oci17msc006.htm#LNOCI13112) for more info.
+    /// 
+    /// # Safety
+    /// 
+    /// Unsafe C
+    pub fn OCITransCommit(svchp: *mut OCISvcCtx,
+                          errhp: *mut OCIError,
+                          flags: c_uint) -> c_int;
+
 
 
 }
