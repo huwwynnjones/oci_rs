@@ -358,6 +358,10 @@ impl<'conn> Statement<'conn> {
         })
     }
 
+    //pub fn bind(&mut self, params: &[&ToSqlValue]) -> Result<(), OciError> {
+
+    //}
+
     pub fn execute(&self) -> Result<(), OciError> {
         let iters = 1 as c_uint;
         let rowoff = 0 as c_uint;
@@ -441,8 +445,8 @@ fn release_statement(statement: *mut OCIStmt, error: *mut OCIError) -> Result<()
 /// create statement handle and prepare sql
 fn prepare_statement(connection: &Connection, sql: &str) -> Result<*mut OCIStmt, OciError> {
     let statement: *mut OCIStmt = ptr::null_mut();
-    let sql_bytes = sql.as_bytes();
-    let sql_bytes_ptr = sql_bytes.as_ptr();
+    //let sql_bytes = sql.as_bytes();
+    let sql_bytes_ptr = sql.as_ptr();
     let sql_len = sql.len() as c_uint;
     let key_ptr = ptr::null();
     let key_len = 0 as c_uint;

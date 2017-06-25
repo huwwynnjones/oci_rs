@@ -1,6 +1,7 @@
 extern crate libc;
 pub mod connection;
 pub mod oci_error;
+//pub mod types;
 mod oci_bindings;
 
 #[cfg(test)]
