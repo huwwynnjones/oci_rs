@@ -7,11 +7,14 @@ mod oci_bindings;
 #[cfg(test)]
 mod tests {
     use connection::Connection;
+    const CONNECTION: &str = "localhost:1521/xe";
+    const USER: &str = "oci_rs";
+    const PASSWORD: &str = "test";
 
     #[test]
     fn create_connection() {
-        let conn = match Connection::new("localhost:1521/xe",
-                                         "huw", "morgen.Luc") {
+        let conn = match Connection::new(CONNECTION,
+                                         USER, PASSWORD) {
             Ok(conn) => conn,
             Err(err) => panic!("Failed to create a connection: {}", err),
         };
@@ -19,8 +22,8 @@ mod tests {
 
     #[test]
     fn create_prepared_statement(){
-        let conn = match Connection::new("localhost:1521/xe",
-                                         "huw", "morgen.Luc") {
+        let conn = match Connection::new(CONNECTION,
+                                         USER, PASSWORD) {
             Ok(conn) => conn,
             Err(err) => panic!("Failed to create a connection: {}", err),
         };

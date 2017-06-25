@@ -348,6 +348,7 @@ fn start_session(service: *mut OCISvcCtx,
 pub struct Statement<'conn> {
     connection: &'conn Connection,
     statement: *mut OCIStmt,
+    bindings: Vec<*mut OCIBind>,
 }
 impl<'conn> Statement<'conn> {
     fn new(connection: &'conn Connection, sql: &str) -> Result<Self, OciError> {
@@ -355,12 +356,40 @@ impl<'conn> Statement<'conn> {
         Ok(Statement {
             connection: connection,
             statement: statement,
+            bindings: Vec::new(),
         })
     }
 
-    //pub fn bind(&mut self, params: &[&ToSqlValue]) -> Result<(), OciError> {
+    pub fn bind(&mut self, params: &[&ToSqlValue]) -> Result<(), OciError> {
+        
+        for (index, param) in params {
+           let sql_value = param.to_sql_value();
+           let position = index + 1 as c_uint;
+           let null_ptr = ptr_null();
+           let maxarr_len: c_uint = 0;
+           let binding: *mut OCIBind = ptr::null_mut();
+           self.bindings.push(binding);
+           let bind_result = unsafe {
+               OCIBindByPos(self.statement,
+                            &self.bindings[index],
+                            self.connection.error,
+                            position,
+                            sql_value.as_ptr(),
+                            sql_value.size(),
+                            sql_value.data_type(),
+                            null_ptr,
+                            null_ptr,
+                            null_ptr,
+                            maxarr_len,
+                            null_ptr,
+                            EnvironmentMode::Default.into())
+           };
+                            
 
-    //}
+
+        }
+        Ok(())
+    }
 
     pub fn execute(&self) -> Result<(), OciError> {
         let iters = 1 as c_uint;

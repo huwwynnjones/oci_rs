@@ -1,4 +1,4 @@
-use libc::{c_uint, c_int, c_void, c_uchar, size_t};
+use libc::{c_uint, c_int, c_void, c_uchar, size_t, c_ushort};
 
 const OCI_DEFAULT: c_uint = 0;
 
@@ -37,6 +37,8 @@ pub enum OCISession {}
 pub enum OCIStmt {}
 #[derive(Debug)]
 pub enum OCISnapshot {}
+#[derive(Debug)]
+pub enum OCIBind {}
 
 #[derive(Debug)]
 pub enum EnvironmentMode {
@@ -357,6 +359,28 @@ extern "C" {
     pub fn OCITransCommit(svchp: *mut OCISvcCtx,
                           errhp: *mut OCIError,
                           flags: c_uint) -> c_int;
+
+    /// Creates an association between a program variable and a placeholder in a SQL statement
+    /// or PL/SQL block.
+    /// See [Oracle docs](http://docs.oracle.com/database/122/LNOCI/
+    /// bind-define-describe-functions.htm#LNOCI17141) for more info.
+    /// 
+    /// # Safety
+    /// 
+    /// Unsafe C
+    pub fn OCIBindByPos(stmtp: *mut OCIStmt,
+                         bindpp: &*mut OCIBind,
+                         errhp: *mut OCIError,
+                         position: c_uint,
+                         valuep: *mut c_void,
+                         value_sz: c_int,
+                         dty: c_ushort,
+                         indp: *mut c_void,
+                         alenp: *mut c_ushort,
+                         rcodep: *mut c_ushort,
+                         maxarr_len: c_uint,
+                         curelep: *mut c_uint,
+                         mode: c_uint) -> c_int;
 
 
 
