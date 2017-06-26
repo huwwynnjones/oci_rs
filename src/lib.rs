@@ -87,6 +87,12 @@ mod tests {
         if let Err(err) = insert.execute() {
             panic!("{}", err)
         }
+        if let Err(err) = insert.bind(&[&24, &"Banana".to_string()]) {
+            panic!("{}", err)
+        }
+        if let Err(err) = insert.execute() {
+            panic!("{}", err)
+        }
         if let Err(err) = insert.commit() {
             panic!("{}", err)
         }

@@ -410,7 +410,7 @@ impl<'conn> Statement<'conn> {
     pub fn execute(&self) -> Result<(), OciError> {
 
         let stmt_type = get_statement_type(self.statement, self.connection.error)?;
-        let iters = match stmt_type{
+        let iters = match stmt_type {
             StatementType::Select => 0 as c_uint,
             _ => 1 as c_uint,
         };
@@ -532,7 +532,7 @@ fn get_statement_type(statement: *mut OCIStmt,
     let attr_check = unsafe {
         OCIAttrGet(statement as *mut c_void,
                    HandleType::Statement.into(),
-                   stmt_type_ptr as *mut c_void, 
+                   stmt_type_ptr as *mut c_void,
                    &mut size,
                    AttributeType::Statement.into(),
                    error)
