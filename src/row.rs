@@ -6,8 +6,8 @@ pub struct Row {
     pub columns: Vec<SqlValue>,
 }
 impl Row {
-    pub fn create_row(the_columns: Vec<SqlValue>) -> Row {
-        Row { columns: the_columns }
+    pub fn create_row(columns: Vec<SqlValue>) -> Row {
+        Row { columns: columns }
     }
 }
 impl Index<usize> for Row {

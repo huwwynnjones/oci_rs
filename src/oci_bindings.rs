@@ -13,8 +13,6 @@ const OCI_CRED_RDBMS: c_uint = 1;
 
 const OCI_NTV_SYNTAX: c_uint = 1;
 
-const SQLT_CHR: c_ushort = 1;
-const SQLT_INT: c_ushort = 3;
 
 #[derive(Debug)]
 pub enum OCIEnv {}
@@ -32,6 +30,8 @@ pub enum OCIStmt {}
 pub enum OCISnapshot {}
 #[derive(Debug)]
 pub enum OCIBind {}
+#[derive(Debug)]
+pub enum OCIParam {}
 
 #[derive(Debug)]
 pub enum EnvironmentMode {
@@ -188,6 +188,9 @@ impl From<SyntaxType> for c_uint {
         }
     }
 }
+
+const SQLT_CHR: c_ushort = 1;
+const SQLT_INT: c_ushort = 3;
 
 #[derive(Debug)]
 pub enum SqlType {
@@ -370,7 +373,7 @@ extern "C" {
     /// # Safety
     ///
     /// Unsafe C
-    pub fn OCIAttrSet(trgthndlp: *mut c_void,
+    pub fn OCIAttrSet(trgthndlp: *const c_void,
                       trghndltyp: c_uint,
                       attributep: *mut c_void,
                       size: c_uint,
@@ -503,6 +506,21 @@ extern "C" {
                         curelep: *mut c_uint,
                         mode: c_uint)
                         -> c_int;
+
+    /// Returns a descriptor of a parameter specified by position in the describe handle or 
+    /// statement handle.
+    /// See [Oracle docs](http://docs.oracle.com/database/122/LNOCI/
+    /// handle-and-descriptor-functions.htm#GUID-35D2FF91-139B-4A5C-97C8-8BC29866CCA4) for more
+    /// info.
+    /// 
+    /// # Safety
+    /// 
+    /// Unsafe C
+    pub fn OCIParamGet(hndlp: *const c_void,
+                       htype: c_uint,
+                       errhp: *mut OCIError,
+                       parmdpp: &*mut c_void,
+                       pos: c_uint) -> c_int;
 
 
 

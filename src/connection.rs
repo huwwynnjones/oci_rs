@@ -3,7 +3,7 @@ use oci_bindings::{OCIEnv, OCIEnvCreate, HandleType, OCIHandleFree, OCIServer, O
                    OCIServerDetach, AttributeType, OCIAttrSet, OCISession, OCISessionBegin,
                    CredentialsType, OCISessionEnd, OCIStmt, OCIStmtPrepare2, SyntaxType,
                    OCIStmtRelease, OCIStmtExecute, OCISnapshot, OCITransCommit, OCIBind,
-                   OCIBindByPos, StatementType, OCIAttrGet};
+                   OCIBindByPos, StatementType, OCIAttrGet, OCIParam, OCIParamGet};
 use oci_error::{OciError, get_error};
 use types::{ToSqlValue, SqlValue};
 use std::ptr;
@@ -35,14 +35,14 @@ impl Connection {
     ///
     /// # Examples
     ///
-    ///```rust,no_run
+    /// ```rust,no_run
     /// use oci_rs::connection::Connection;
     ///
     /// let connection = Connection::new("localhost:1521/xe",
     ///                                  "user",
     ///                                  "password")
     ///                                  .expect("Something went wrong");
-    ///```
+    /// ```
     pub fn new(connection_str: &str,
                user_name: &str,
                password: &str)
@@ -530,7 +530,7 @@ fn get_statement_type(statement: *mut OCIStmt,
     let stmt_type_ptr: *mut c_uint = &mut stmt_type;
     let mut size: c_uint = 0;
     let attr_check = unsafe {
-        OCIAttrGet(statement as *mut c_void,
+        OCIAttrGet(statement as *const c_void,
                    HandleType::Statement.into(),
                    stmt_type_ptr as *mut c_void,
                    &mut size,
@@ -546,4 +546,40 @@ fn get_statement_type(statement: *mut OCIStmt,
                           "Getting statement type"))
         }
     }
+}
+
+/// build a row from the data found
+fn build_row(statement: *mut OCIStmt, error: *mut OCIError) -> Result<Row, OciError> {
+
+    let mut position: c_uint = 1;
+    let parameter: *mut OCIParam = ptr::null_mut();
+    let mut columns: Vec<SqlValue> = Vec::new();
+
+    loop {
+        let param_result = unsafe {
+            OCIParamGet(statement as *const c_void,
+                        HandleType::Statement.into(),
+                        error,
+                        &(parameter as *mut c_void),
+                        position)
+        };
+
+        match param_result.into() {
+            ReturnCode::Error => {
+                let err = get_error(error as *mut c_void,
+                                    HandleType::Error,
+                                    "Getting a parameter");
+                match err.last_error_code() {
+                    Some(i) if i == 24334 => break,
+                    None | Some(_) => return Err(err),
+                }
+            }
+            _ => (),
+        }
+        
+
+
+        position += 1;
+    }
+    Ok(Row::create_row(columns))
 }

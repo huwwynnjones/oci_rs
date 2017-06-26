@@ -17,6 +17,19 @@ pub enum OciError {
     Conversion,
     Nul(NulError),
 }
+impl OciError{
+    pub fn last_error_code(&self) -> Option<i32>{
+        match *self {
+            OciError::Oracle(ref e) => {
+                match e.records.last(){
+                    Some(code) => Some(code.0),
+                    None => None,
+                }
+            },
+            _ => None,
+        }
+    }
+}
 
 impl fmt::Display for OciError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
