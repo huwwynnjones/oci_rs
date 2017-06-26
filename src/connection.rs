@@ -3,10 +3,11 @@ use oci_bindings::{OCIEnv, OCIEnvCreate, HandleType, OCIHandleFree, OCIServer, O
                    OCIServerDetach, AttributeType, OCIAttrSet, OCISession, OCISessionBegin,
                    CredentialsType, OCISessionEnd, OCIStmt, OCIStmtPrepare2, SyntaxType,
                    OCIStmtRelease, OCIStmtExecute, OCISnapshot, OCITransCommit, OCIBind,
-                   OCIBindByPos};
+                   OCIBindByPos, StatementType, OCIAttrGet};
 use oci_error::{OciError, get_error};
 use types::{ToSqlValue, SqlValue};
 use std::ptr;
+use row::Row;
 use libc::{c_void, size_t, c_int, c_uint, c_ushort};
 
 /// Represents a connection to a database. Internally
@@ -349,6 +350,7 @@ pub struct Statement<'conn> {
     statement: *mut OCIStmt,
     bindings: Vec<*mut OCIBind>,
     values: Vec<SqlValue>,
+    result: Vec<Row>,
 }
 impl<'conn> Statement<'conn> {
     fn new(connection: &'conn Connection, sql: &str) -> Result<Self, OciError> {
@@ -358,10 +360,12 @@ impl<'conn> Statement<'conn> {
             statement: statement,
             bindings: Vec::new(),
             values: Vec::new(),
+            result: Vec::new(),
         })
     }
 
     pub fn bind(&mut self, params: &[&ToSqlValue]) -> Result<(), OciError> {
+        self.values.clear();
 
         for (index, param) in params.iter().enumerate() {
             let sql_value = param.to_sql_value();
@@ -404,7 +408,12 @@ impl<'conn> Statement<'conn> {
     }
 
     pub fn execute(&self) -> Result<(), OciError> {
-        let iters = 1 as c_uint;
+
+        let stmt_type = get_statement_type(self.statement, self.connection.error)?;
+        let iters = match stmt_type{
+            StatementType::Select => 0 as c_uint,
+            _ => 1 as c_uint,
+        };
         let rowoff = 0 as c_uint;
         let snap_in: *const OCISnapshot = ptr::null();
         let snap_out: *mut OCISnapshot = ptr::null_mut();
@@ -508,6 +517,33 @@ fn prepare_statement(connection: &Connection, sql: &str) -> Result<*mut OCIStmt,
             let mut err_txt = String::from("Preparing statement: ");
             err_txt.push_str(sql);
             Err(get_error(connection.error as *mut c_void, HandleType::Error, &err_txt))
+        }
+    }
+}
+
+/// find out what sort of statement was prepared
+fn get_statement_type(statement: *mut OCIStmt,
+                      error: *mut OCIError)
+                      -> Result<StatementType, OciError> {
+
+    let mut stmt_type: c_uint = 0;
+    let stmt_type_ptr: *mut c_uint = &mut stmt_type;
+    let mut size: c_uint = 0;
+    let attr_check = unsafe {
+        OCIAttrGet(statement as *mut c_void,
+                   HandleType::Statement.into(),
+                   stmt_type_ptr as *mut c_void, 
+                   &mut size,
+                   AttributeType::Statement.into(),
+                   error)
+    };
+
+    match attr_check.into() {
+        ReturnCode::Success => Ok(stmt_type.into()),
+        _ => {
+            Err(get_error(error as *mut c_void,
+                          HandleType::Error,
+                          "Getting statement type"))
         }
     }
 }

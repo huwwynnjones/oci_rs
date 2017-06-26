@@ -2,6 +2,7 @@ extern crate libc;
 pub mod connection;
 pub mod oci_error;
 pub mod types;
+pub mod row;
 mod oci_bindings;
 
 #[cfg(test)]
@@ -46,7 +47,7 @@ mod tests {
     }
 
     #[test]
-    fn test_bind() {
+    fn bind() {
         let conn = match Connection::new(CONNECTION, USER, PASSWORD) {
             Ok(conn) => conn,
             Err(err) => panic!("Failed to create a connection: {}", err),
@@ -72,6 +73,14 @@ mod tests {
         };
         let name = String::from("Apple");
         let id: i64 = 22;
+        if let Err(err) = insert.bind(&[&id, &name]) {
+            panic!("{}", err)
+        }
+        if let Err(err) = insert.execute() {
+            panic!("{}", err)
+        }
+        let name = String::from("Pear");
+        let id: i64 = 23;
         if let Err(err) = insert.bind(&[&id, &name]) {
             panic!("{}", err)
         }

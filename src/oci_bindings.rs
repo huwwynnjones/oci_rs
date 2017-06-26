@@ -2,22 +2,12 @@ use libc::{c_uint, c_int, c_void, c_uchar, size_t, c_ushort};
 
 const OCI_DEFAULT: c_uint = 0;
 
-const OCI_HTYPE_ENV: c_uint = 1;
-const OCI_HTYPE_ERROR: c_uint = 2;
-const OCI_HTYPE_SVCCTX: c_uint = 3;
-const OCI_HTYPE_STMT: c_uint = 4;
-const OCI_HTYPE_SERVER: c_uint = 8;
-const OCI_HTYPE_SESSION: c_uint = 9;
 
 const OCI_SUCCESS: c_int = 0;
 const OCI_ERROR: c_int = -1;
 const OCI_NO_DATA: c_int = 100;
 const OCI_INVALID_HANDLE: c_int = -2;
 
-const OCI_ATTR_SERVER: c_uint = 6;
-const OCI_ATTR_USERNAME: c_uint = 22;
-const OCI_ATTR_PASSWORD: c_uint = 23;
-const OCI_ATTR_SESSION: c_uint = 7;
 
 const OCI_CRED_RDBMS: c_uint = 1;
 
@@ -77,30 +67,58 @@ impl From<c_int> for ReturnCode {
             OCI_SUCCESS => ReturnCode::Success,
             OCI_NO_DATA => ReturnCode::NoData,
             OCI_INVALID_HANDLE => ReturnCode::InvalidHandle,
-            OCI_ERROR | _ => ReturnCode::Error,
+            OCI_ERROR => ReturnCode::Error,
+            _ => {
+                panic!(format!("Found an unknown return code: {}, this should not happen.",
+                               number))
+            }
         }
     }
 }
 
+const OCI_HTYPE_ENV: c_uint = 1;
+const OCI_HTYPE_ERROR: c_uint = 2;
+const OCI_HTYPE_SVCCTX: c_uint = 3;
+const OCI_HTYPE_STMT: c_uint = 4;
+const OCI_HTYPE_SERVER: c_uint = 8;
+const OCI_HTYPE_SESSION: c_uint = 9;
+
 #[derive(Debug, Copy, Clone)]
 pub enum HandleType {
-    Error,
     Environment,
-    Server,
+    Error,
     Service,
-    Session,
     Statement,
+    Server,
+    Session,
 }
 
 impl From<HandleType> for c_uint {
     fn from(handle_type: HandleType) -> Self {
         match handle_type {
-            HandleType::Error => OCI_HTYPE_ERROR,
             HandleType::Environment => OCI_HTYPE_ENV,
-            HandleType::Server => OCI_HTYPE_SERVER,
+            HandleType::Error => OCI_HTYPE_ERROR,
             HandleType::Service => OCI_HTYPE_SVCCTX,
-            HandleType::Session => OCI_HTYPE_SESSION,
             HandleType::Statement => OCI_HTYPE_STMT,
+            HandleType::Server => OCI_HTYPE_SERVER,
+            HandleType::Session => OCI_HTYPE_SESSION,
+        }
+    }
+}
+
+impl From<c_uint> for HandleType {
+    fn from(number: c_uint) -> Self {
+        match number {
+            OCI_HTYPE_ENV => HandleType::Environment,
+            OCI_HTYPE_ERROR => HandleType::Error,
+            OCI_HTYPE_SVCCTX => HandleType::Service,
+            OCI_HTYPE_STMT => HandleType::Statement,
+            OCI_HTYPE_SERVER => HandleType::Server,
+            OCI_HTYPE_SESSION => HandleType::Session,
+            _ => {
+                panic!(format!("Found an unknown handle type: {}, this should not happen.",
+                               number))
+            }
         }
     }
 }
@@ -118,11 +136,18 @@ impl<'hnd> From<HandleType> for &'hnd str {
     }
 }
 
+const OCI_ATTR_SERVER: c_uint = 6;
+const OCI_ATTR_USERNAME: c_uint = 22;
+const OCI_ATTR_PASSWORD: c_uint = 23;
+const OCI_ATTR_STMT: c_uint = 24;
+const OCI_ATTR_SESSION: c_uint = 7;
+
 #[derive(Debug)]
 pub enum AttributeType {
     Server,
     UserName,
     Password,
+    Statement,
     Session,
 }
 
@@ -132,6 +157,7 @@ impl From<AttributeType> for c_uint {
             AttributeType::Server => OCI_ATTR_SERVER,
             AttributeType::UserName => OCI_ATTR_USERNAME,
             AttributeType::Password => OCI_ATTR_PASSWORD,
+            AttributeType::Statement => OCI_ATTR_STMT,
             AttributeType::Session => OCI_ATTR_SESSION,
         }
     }
@@ -174,6 +200,69 @@ impl From<SqlType> for c_ushort {
         match sql_type {
             SqlType::SqlChar => SQLT_CHR,
             SqlType::SqlInt => SQLT_INT,
+        }
+    }
+}
+
+const OCI_STMT_UNKNOWN: c_uint = 0;
+const OCI_STMT_SELECT: c_uint = 1;
+const OCI_STMT_UPDATE: c_uint = 2;
+const OCI_STMT_DELETE: c_uint = 3;
+const OCI_STMT_INSERT: c_uint = 4;
+const OCI_STMT_CREATE: c_uint = 5;
+const OCI_STMT_DROP: c_uint = 6;
+const OCI_STMT_ALTER: c_uint = 7;
+const OCI_STMT_BEGIN: c_uint = 8;
+const OCI_STMT_DECLARE: c_uint = 9;
+
+#[derive(Debug)]
+pub enum StatementType {
+    Unknown,
+    Select,
+    Update,
+    Delete,
+    Insert,
+    Create,
+    Drop,
+    Alter,
+    Begin,
+    Declare,
+}
+
+impl From<StatementType> for c_uint {
+    fn from(statement_type: StatementType) -> Self {
+        match statement_type {
+            StatementType::Unknown => OCI_STMT_UNKNOWN,
+            StatementType::Select => OCI_STMT_SELECT,
+            StatementType::Update => OCI_STMT_UPDATE,
+            StatementType::Delete => OCI_STMT_DELETE,
+            StatementType::Insert => OCI_STMT_INSERT,
+            StatementType::Create => OCI_STMT_CREATE,
+            StatementType::Drop => OCI_STMT_DROP,
+            StatementType::Alter => OCI_STMT_ALTER,
+            StatementType::Begin => OCI_STMT_BEGIN,
+            StatementType::Declare => OCI_STMT_DECLARE,
+        }
+    }
+}
+
+impl From<c_uint> for StatementType {
+    fn from(number: c_uint) -> Self {
+        match number {
+            OCI_STMT_UNKNOWN => StatementType::Unknown,
+            OCI_STMT_SELECT => StatementType::Select,
+            OCI_STMT_UPDATE => StatementType::Update,
+            OCI_STMT_DELETE => StatementType::Delete,
+            OCI_STMT_INSERT => StatementType::Insert,
+            OCI_STMT_CREATE => StatementType::Create,
+            OCI_STMT_DROP => StatementType::Drop,
+            OCI_STMT_ALTER => StatementType::Alter,
+            OCI_STMT_BEGIN => StatementType::Begin,
+            OCI_STMT_DECLARE => StatementType::Declare,
+            _ => {
+                panic!(format!("Found an unknown statement type: {}, this should not happen.",
+                               number))
+            }
         }
     }
 }
@@ -288,6 +377,22 @@ extern "C" {
                       attrtype: c_uint,
                       errhp: *mut OCIError)
                       -> c_int;
+
+    /// Gets the value of an attribute of a handle.
+    /// See [Oracle docs](https://docs.oracle.com/database/122/LNOCI/
+    /// handle-and-descriptor-functions.htm#LNOCI17130) for more info.
+    ///
+    /// # Safety
+    ///
+    /// Unsafe C
+    pub fn OCIAttrGet(trgthndlp: *const c_void,
+                      trghndltyp: c_uint,
+                      attributep: *mut c_void,
+                      sizep: *mut c_uint,
+                      attrtype: c_uint,
+                      errhp: *mut OCIError)
+                      -> c_int;
+
 
     /// Creates and starts a user session.
     /// See [Oracle docs](https://docs.oracle.com/database/122/LNOCI/
