@@ -2,10 +2,12 @@ use oci_bindings::{OCIEnv, OCIEnvCreate, HandleType, OCIHandleFree, OCIServer, O
                    ReturnCode, EnvironmentMode, OCIError, OCISvcCtx, OCIServerAttach,
                    OCIServerDetach, AttributeType, OCIAttrSet, OCISession, OCISessionBegin,
                    CredentialsType, OCISessionEnd, OCIStmt, OCIStmtPrepare2, SyntaxType,
-                   OCIStmtRelease, OCIStmtExecute, OCISnapshot, OCITransCommit};
+                   OCIStmtRelease, OCIStmtExecute, OCISnapshot, OCITransCommit, OCIBind,
+                   OCIBindByPos};
 use oci_error::{OciError, get_error};
+use types::{ToSqlValue, SqlValue};
 use std::ptr;
-use libc::{c_void, size_t, c_int, c_uint};
+use libc::{c_void, size_t, c_int, c_uint, c_ushort};
 
 /// Represents a connection to a database. Internally
 /// it holds the various handles that are needed to maintain
@@ -116,12 +118,12 @@ impl Drop for Connection {
 
 /// Creates an environment handle
 fn create_environment_handle() -> Result<*mut OCIEnv, OciError> {
-    let mut env: *mut OCIEnv = ptr::null_mut();
+    let env: *mut OCIEnv = ptr::null_mut();
     let mode = EnvironmentMode::Default.into();
     let xtramem_sz: size_t = 0;
     let null_ptr = ptr::null();
     let env_result = unsafe {
-        OCIEnvCreate(&mut env,
+        OCIEnvCreate(&env,
                      mode,
                      null_ptr,
                      null_ptr,
@@ -160,7 +162,7 @@ fn create_error_handle(env: *const OCIEnv) -> Result<*mut OCIError, OciError> {
 fn create_service_handle(env: *const OCIEnv) -> Result<*mut OCISvcCtx, OciError> {
     match allocate_handle(env, HandleType::Service) {
         Ok(service) => Ok(service as *mut OCISvcCtx),
-        Err(err) => return Err(err),
+        Err(err) => Err(err),
     }
 }
 
@@ -194,13 +196,12 @@ fn set_user_name_in_session(session: *mut OCISession,
                             user_name: &str,
                             error: *mut OCIError)
                             -> Result<(), OciError> {
-    let user_name_bytes = user_name.as_bytes();
-    let user_name_bytes_ptr = user_name_bytes.as_ptr();
+    let user_name_ptr = user_name.as_ptr();
     let user_name_len = user_name.len() as c_uint;
 
     set_handle_attribute(session as *mut c_void,
                          HandleType::Session,
-                         user_name_bytes_ptr as *mut c_void,
+                         user_name_ptr as *mut c_void,
                          user_name_len,
                          AttributeType::UserName.into(),
                          error,
@@ -213,13 +214,12 @@ fn set_password_in_session(session: *mut OCISession,
                            password: &str,
                            error: *mut OCIError)
                            -> Result<(), OciError> {
-    let password_bytes = password.as_bytes();
-    let password_bytes_ptr = password_bytes.as_ptr();
+    let password_ptr = password.as_ptr();
     let password_len = password.len() as c_uint;
 
     set_handle_attribute(session as *mut c_void,
                          HandleType::Session,
-                         password_bytes_ptr as *mut c_void,
+                         password_ptr as *mut c_void,
                          password_len,
                          AttributeType::Password.into(),
                          error,
@@ -273,12 +273,12 @@ fn set_handle_attribute(handle: *mut c_void,
 
 /// Allocate a handle
 fn allocate_handle(env: *const OCIEnv, handle_type: HandleType) -> Result<*mut c_void, OciError> {
-    let mut handle: *mut c_void = ptr::null_mut();
+    let handle: *mut c_void = ptr::null_mut();
     let xtramem_sz: size_t = 0;
     let null_ptr = ptr::null();
     let allocation_result = unsafe {
         OCIHandleAlloc(env as *const c_void,
-                       &mut handle,
+                       &handle,
                        handle_type.into(),
                        xtramem_sz,
                        null_ptr)
@@ -298,14 +298,13 @@ fn connect_to_database(server: *mut OCIServer,
                        connection_str: &str,
                        error: *mut OCIError)
                        -> Result<(), OciError> {
-    let conn_bytes = connection_str.as_bytes();
-    let conn_bytes_ptr = conn_bytes.as_ptr();
+    let conn_ptr = connection_str.as_ptr();
     let conn_len = connection_str.len() as c_int;
 
     let connect_result = unsafe {
         OCIServerAttach(server,
                         error,
-                        conn_bytes_ptr,
+                        conn_ptr,
                         conn_len,
                         EnvironmentMode::Default.into())
     };
@@ -349,6 +348,7 @@ pub struct Statement<'conn> {
     connection: &'conn Connection,
     statement: *mut OCIStmt,
     bindings: Vec<*mut OCIBind>,
+    values: Vec<SqlValue>,
 }
 impl<'conn> Statement<'conn> {
     fn new(connection: &'conn Connection, sql: &str) -> Result<Self, OciError> {
@@ -357,36 +357,48 @@ impl<'conn> Statement<'conn> {
             connection: connection,
             statement: statement,
             bindings: Vec::new(),
+            values: Vec::new(),
         })
     }
 
     pub fn bind(&mut self, params: &[&ToSqlValue]) -> Result<(), OciError> {
-        
-        for (index, param) in params {
-           let sql_value = param.to_sql_value();
-           let position = index + 1 as c_uint;
-           let null_ptr = ptr_null();
-           let maxarr_len: c_uint = 0;
-           let binding: *mut OCIBind = ptr::null_mut();
-           self.bindings.push(binding);
-           let bind_result = unsafe {
-               OCIBindByPos(self.statement,
-                            &self.bindings[index],
-                            self.connection.error,
-                            position,
-                            sql_value.as_ptr(),
-                            sql_value.size(),
-                            sql_value.data_type(),
-                            null_ptr,
-                            null_ptr,
-                            null_ptr,
-                            maxarr_len,
-                            null_ptr,
-                            EnvironmentMode::Default.into())
-           };
-                            
 
+        for (index, param) in params.iter().enumerate() {
+            let sql_value = param.to_sql_value();
+            self.values.push(sql_value);
+            let binding: *mut OCIBind = ptr::null_mut();
+            self.bindings.push(binding);
 
+            let position = (index + 1) as c_uint;
+            let null_mut_ptr = ptr::null_mut();
+            let indp = null_mut_ptr;
+            let alenp = null_mut_ptr as *mut c_ushort;
+            let rcodep = null_mut_ptr as *mut c_ushort;
+            let curelep = null_mut_ptr as *mut c_uint;
+            let maxarr_len: c_uint = 0;
+            let bind_result = unsafe {
+                OCIBindByPos(self.statement,
+                             &self.bindings[index],
+                             self.connection.error,
+                             position,
+                             self.values[index].as_oci_ptr(),
+                             self.values[index].size(),
+                             self.values[index].oci_data_type(),
+                             indp,
+                             alenp,
+                             rcodep,
+                             maxarr_len,
+                             curelep,
+                             EnvironmentMode::Default.into())
+            };
+            match bind_result.into() {
+                ReturnCode::Success => (),
+                _ => {
+                    return Err(get_error(self.connection.error as *mut c_void,
+                                         HandleType::Error,
+                                         "Binding parameter"))
+                }
+            }
         }
         Ok(())
     }
@@ -474,8 +486,7 @@ fn release_statement(statement: *mut OCIStmt, error: *mut OCIError) -> Result<()
 /// create statement handle and prepare sql
 fn prepare_statement(connection: &Connection, sql: &str) -> Result<*mut OCIStmt, OciError> {
     let statement: *mut OCIStmt = ptr::null_mut();
-    //let sql_bytes = sql.as_bytes();
-    let sql_bytes_ptr = sql.as_ptr();
+    let sql_ptr = sql.as_ptr();
     let sql_len = sql.len() as c_uint;
     let key_ptr = ptr::null();
     let key_len = 0 as c_uint;
@@ -483,7 +494,7 @@ fn prepare_statement(connection: &Connection, sql: &str) -> Result<*mut OCIStmt,
         OCIStmtPrepare2(connection.service,
                         &statement,
                         connection.error,
-                        sql_bytes_ptr,
+                        sql_ptr,
                         sql_len,
                         key_ptr,
                         key_len,

@@ -23,6 +23,9 @@ const OCI_CRED_RDBMS: c_uint = 1;
 
 const OCI_NTV_SYNTAX: c_uint = 1;
 
+const SQLT_CHR: c_ushort = 1;
+const SQLT_INT: c_ushort = 3;
+
 #[derive(Debug)]
 pub enum OCIEnv {}
 #[derive(Debug)]
@@ -72,10 +75,9 @@ impl From<c_int> for ReturnCode {
     fn from(number: c_int) -> Self {
         match number {
             OCI_SUCCESS => ReturnCode::Success,
-            OCI_ERROR => ReturnCode::Error,
             OCI_NO_DATA => ReturnCode::NoData,
             OCI_INVALID_HANDLE => ReturnCode::InvalidHandle,
-            _ => ReturnCode::Error,
+            OCI_ERROR | _ => ReturnCode::Error,
         }
     }
 }
@@ -157,6 +159,21 @@ impl From<SyntaxType> for c_uint {
     fn from(syntax_type: SyntaxType) -> Self {
         match syntax_type {
             SyntaxType::Ntv => OCI_NTV_SYNTAX,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum SqlType {
+    SqlChar,
+    SqlInt,
+}
+
+impl From<SqlType> for c_ushort {
+    fn from(sql_type: SqlType) -> Self {
+        match sql_type {
+            SqlType::SqlChar => SQLT_CHR,
+            SqlType::SqlInt => SQLT_INT,
         }
     }
 }
@@ -336,9 +353,9 @@ extern "C" {
     /// Executes a statement.
     /// See [Oracle docs](https://docs.oracle.com/database/122/LNOCI/
     /// statement-functions.htm#LNOCI17163) for more info.
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// Unsafe C
     pub fn OCIStmtExecute(svchp: *mut OCISvcCtx,
                           stmtp: *mut OCIStmt,
@@ -347,40 +364,40 @@ extern "C" {
                           rowoff: c_uint,
                           snap_in: *const OCISnapshot,
                           snap_out: *mut OCISnapshot,
-                          mode: c_uint) -> c_int;
+                          mode: c_uint)
+                          -> c_int;
 
     /// Commits the transaction associated with a specified service context.
     /// See [Oracle docs](https://docs.oracle.com/cd/E11882_01/appdev.112/e10646/
     /// oci17msc006.htm#LNOCI13112) for more info.
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// Unsafe C
-    pub fn OCITransCommit(svchp: *mut OCISvcCtx,
-                          errhp: *mut OCIError,
-                          flags: c_uint) -> c_int;
+    pub fn OCITransCommit(svchp: *mut OCISvcCtx, errhp: *mut OCIError, flags: c_uint) -> c_int;
 
     /// Creates an association between a program variable and a placeholder in a SQL statement
     /// or PL/SQL block.
     /// See [Oracle docs](http://docs.oracle.com/database/122/LNOCI/
     /// bind-define-describe-functions.htm#LNOCI17141) for more info.
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// Unsafe C
     pub fn OCIBindByPos(stmtp: *mut OCIStmt,
-                         bindpp: &*mut OCIBind,
-                         errhp: *mut OCIError,
-                         position: c_uint,
-                         valuep: *mut c_void,
-                         value_sz: c_int,
-                         dty: c_ushort,
-                         indp: *mut c_void,
-                         alenp: *mut c_ushort,
-                         rcodep: *mut c_ushort,
-                         maxarr_len: c_uint,
-                         curelep: *mut c_uint,
-                         mode: c_uint) -> c_int;
+                        bindpp: &*mut OCIBind,
+                        errhp: *mut OCIError,
+                        position: c_uint,
+                        valuep: *mut c_void,
+                        value_sz: c_int,
+                        dty: c_ushort,
+                        indp: *mut c_void,
+                        alenp: *mut c_ushort,
+                        rcodep: *mut c_ushort,
+                        maxarr_len: c_uint,
+                        curelep: *mut c_uint,
+                        mode: c_uint)
+                        -> c_int;
 
 
 
