@@ -3,7 +3,8 @@ use oci_bindings::{OCIEnv, OCIEnvCreate, HandleType, OCIHandleFree, OCIServer, O
                    OCIServerDetach, AttributeType, OCIAttrSet, OCISession, OCISessionBegin,
                    CredentialsType, OCISessionEnd, OCIStmt, OCIStmtPrepare2, SyntaxType,
                    OCIStmtRelease, OCIStmtExecute, OCISnapshot, OCITransCommit, OCIBind,
-                   OCIBindByPos, StatementType, OCIAttrGet, OCIParam, OCIParamGet};
+                   OCIBindByPos, StatementType, OCIAttrGet, OCIParam, OCIParamGet, OCIDefine,
+                   OCIDefineByPos, DescriptorType, SqlType};
 use oci_error::{OciError, get_error};
 use types::{ToSqlValue, SqlValue};
 use std::ptr;
@@ -32,6 +33,10 @@ impl Connection {
     /// in OCI library will bubble up here. The OciError will
     /// return the relevant Oracle error codes and text when
     /// available.
+    ///
+    /// Currently it defaults to an OCI multithreaded mode, the
+    /// downside is that use of a connection in a single threaded
+    /// environment might be slower.
     ///
     /// # Examples
     ///
@@ -120,7 +125,7 @@ impl Drop for Connection {
 /// Creates an environment handle
 fn create_environment_handle() -> Result<*mut OCIEnv, OciError> {
     let env: *mut OCIEnv = ptr::null_mut();
-    let mode = EnvironmentMode::Default.into();
+    let mode = EnvironmentMode::Threaded.into();
     let xtramem_sz: size_t = 0;
     let null_ptr = ptr::null();
     let env_result = unsafe {
@@ -576,8 +581,58 @@ fn build_row(statement: *mut OCIStmt, error: *mut OCIError) -> Result<Row, OciEr
             }
             _ => (),
         }
-        
 
+        let mut data_type: c_ushort = 0;
+        let data_type_ptr: *mut c_ushort = &mut data_type;
+        let mut size: c_uint = 0;
+        let data_type_result = unsafe {
+            OCIAttrGet(parameter as *mut c_void,
+                       DescriptorType::Parameter.into(),
+                       data_type_ptr as *mut c_void,
+                       &mut size,
+                       AttributeType::Parameter.into(),
+                       error)
+        };
+        match data_type_result.into() {
+            ReturnCode::Success => (),
+            _ => {
+                return Err(get_error(error as *mut c_void,
+                                    HandleType::Error,
+                                     "Getting data type for parameter"))
+            }
+        }
+
+
+
+        let define: *mut OCIDefine = ptr::null_mut();
+        let sql_type: SqlType = data_type.into();
+        let mut data: Vec<u8> = Vec::with_capacity(sql_type.size());
+        let mut data_slice = &data;
+        let null_mut_ptr = ptr::null_mut();
+        let indp = null_mut_ptr;
+        let rlenp = null_mut_ptr as *mut c_ushort;
+        let rcodep = null_mut_ptr as *mut c_ushort;
+        let define_result = unsafe {
+            OCIDefineByPos(statement,
+                           &define,
+                           error,
+                           position,
+                           data_slice.as_mut_ptr() as *mut c_void,
+                           data_type.into(),
+                           sql_type.size(),
+                           indp,
+                           rlenp,
+                           rcodep,
+                           EnvironmentMode::Default.into())
+        };
+        match define_result.into() {
+            ReturnCode::Success => (),
+            _ => {
+                return Err(get_error(error as *mut c_void,
+                                     HandleType::Error,
+                                     "Getting column value"))
+            }
+        }
 
         position += 1;
     }

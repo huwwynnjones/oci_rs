@@ -1,6 +1,5 @@
 use libc::{c_uint, c_int, c_void, c_uchar, size_t, c_ushort};
 
-const OCI_DEFAULT: c_uint = 0;
 
 
 const OCI_SUCCESS: c_int = 0;
@@ -32,23 +31,23 @@ pub enum OCISnapshot {}
 pub enum OCIBind {}
 #[derive(Debug)]
 pub enum OCIParam {}
+#[derive(Debug)]
+pub enum OCIDefine {}
+
+const OCI_DEFAULT: c_uint = 0;
+const OCI_THREADED: c_uint = 1;
 
 #[derive(Debug)]
 pub enum EnvironmentMode {
     Default,
-}
-impl EnvironmentMode {
-    pub fn to_environment_code(&self) -> c_uint {
-        match *self {
-            EnvironmentMode::Default => OCI_DEFAULT,
-        }
-    }
+    Threaded,
 }
 
 impl From<EnvironmentMode> for c_uint {
     fn from(mode: EnvironmentMode) -> Self {
         match mode {
             EnvironmentMode::Default => OCI_DEFAULT,
+            EnvironmentMode::Threaded => OCI_THREADED,
         }
     }
 }
@@ -137,28 +136,31 @@ impl<'hnd> From<HandleType> for &'hnd str {
 }
 
 const OCI_ATTR_SERVER: c_uint = 6;
+const OCI_ATTR_SESSION: c_uint = 7;
 const OCI_ATTR_USERNAME: c_uint = 22;
 const OCI_ATTR_PASSWORD: c_uint = 23;
 const OCI_ATTR_STMT: c_uint = 24;
-const OCI_ATTR_SESSION: c_uint = 7;
+const OCI_ATTR_PARAM: c_uint = 124;
 
 #[derive(Debug)]
 pub enum AttributeType {
     Server,
+    Session,
     UserName,
     Password,
     Statement,
-    Session,
+    Parameter,
 }
 
 impl From<AttributeType> for c_uint {
     fn from(attribute_type: AttributeType) -> Self {
         match attribute_type {
             AttributeType::Server => OCI_ATTR_SERVER,
+            AttributeType::Session => OCI_ATTR_SESSION,
             AttributeType::UserName => OCI_ATTR_USERNAME,
             AttributeType::Password => OCI_ATTR_PASSWORD,
             AttributeType::Statement => OCI_ATTR_STMT,
-            AttributeType::Session => OCI_ATTR_SESSION,
+            AttributeType::Parameter => OCI_ATTR_PARAM,
         }
     }
 }
@@ -196,6 +198,14 @@ const SQLT_INT: c_ushort = 3;
 pub enum SqlType {
     SqlChar,
     SqlInt,
+}
+impl SqlType {
+    pub fn size(&self) -> usize{
+        match *self{
+            SqlType::SqlChar => 1024,
+            SqlType:: SqlInt => 64 / 8,
+        }
+    }
 }
 
 impl From<SqlType> for c_ushort {
@@ -266,6 +276,21 @@ impl From<c_uint> for StatementType {
                 panic!(format!("Found an unknown statement type: {}, this should not happen.",
                                number))
             }
+        }
+    }
+}
+
+const OCI_DTYPE_PARAM: c_uint = 53;
+
+#[derive(Debug)]
+pub enum DescriptorType{
+    Parameter,
+}
+
+impl From<DescriptorType> for c_uint{
+    fn from(descriptor_type: DescriptorType) -> Self {
+        match descriptor_type{
+            DescriptorType::Parameter => OCI_DTYPE_PARAM,
         }
     }
 }
@@ -522,6 +547,23 @@ extern "C" {
                        parmdpp: &*mut c_void,
                        pos: c_uint) -> c_int;
 
-
-
+    /// Associates an item in a select list with the type and output data buffer.
+    /// See [Oracle docs](http://docs.oracle.com/database/122/LNOCI/
+    /// bind-define-describe-functions.htm#GUID-CFE5AA54-DEBC-42D3-8A27-AFF1E7815691) for more
+    /// info.
+    /// 
+    /// # Safety
+    /// 
+    /// Unsafe C
+    pub fn OCIDefineByPos(stmtp: *mut OCIStmt,
+                          defnpp: &*mut OCIDefine,
+                          errhp: *mut OCIError,
+                          position: c_uint,
+                          valuep: *mut c_void,
+                          value_sz: c_int,
+                          dty: c_ushort,
+                          indp: *mut c_void,
+                          rlenp: *mut c_ushort,
+                          rcodep: *mut c_ushort,
+                          mode: c_uint) -> c_int;
 }
