@@ -135,6 +135,7 @@ impl<'hnd> From<HandleType> for &'hnd str {
     }
 }
 
+const OCI_ATTR_DATA_TYPE: c_uint = 2;
 const OCI_ATTR_SERVER: c_uint = 6;
 const OCI_ATTR_SESSION: c_uint = 7;
 const OCI_ATTR_USERNAME: c_uint = 22;
@@ -144,6 +145,7 @@ const OCI_ATTR_PARAM: c_uint = 124;
 
 #[derive(Debug)]
 pub enum AttributeType {
+    DataType,
     Server,
     Session,
     UserName,
@@ -155,6 +157,7 @@ pub enum AttributeType {
 impl From<AttributeType> for c_uint {
     fn from(attribute_type: AttributeType) -> Self {
         match attribute_type {
+            AttributeType::DataType => OCI_ATTR_DATA_TYPE,
             AttributeType::Server => OCI_ATTR_SERVER,
             AttributeType::Session => OCI_ATTR_SESSION,
             AttributeType::UserName => OCI_ATTR_USERNAME,
@@ -192,18 +195,21 @@ impl From<SyntaxType> for c_uint {
 }
 
 const SQLT_CHR: c_ushort = 1;
+const SQLT_NUM: c_ushort = 2;
 const SQLT_INT: c_ushort = 3;
 
 #[derive(Debug)]
 pub enum SqlType {
     SqlChar,
     SqlInt,
+    SqlNum,
 }
 impl SqlType {
-    pub fn size(&self) -> usize{
-        match *self{
+    pub fn size(&self) -> usize {
+        match *self {
             SqlType::SqlChar => 1024,
-            SqlType:: SqlInt => 64 / 8,
+            SqlType::SqlInt => 64 / 8,
+            SqlType::SqlNum => 64 / 8,
         }
     }
 }
@@ -213,6 +219,21 @@ impl From<SqlType> for c_ushort {
         match sql_type {
             SqlType::SqlChar => SQLT_CHR,
             SqlType::SqlInt => SQLT_INT,
+            SqlType::SqlNum => SQLT_NUM,
+        }
+    }
+}
+
+impl From<c_ushort> for SqlType {
+    fn from(number: c_ushort) -> Self {
+        match number {
+            SQLT_CHR => SqlType::SqlChar,
+            SQLT_INT => SqlType::SqlInt,
+            SQLT_NUM => SqlType::SqlNum,
+            _ => {
+                panic!(format!("Found an unknown SqlType code, {}, this should not happen",
+                               number))
+            }
         }
     }
 }
@@ -283,14 +304,29 @@ impl From<c_uint> for StatementType {
 const OCI_DTYPE_PARAM: c_uint = 53;
 
 #[derive(Debug)]
-pub enum DescriptorType{
+pub enum DescriptorType {
     Parameter,
 }
 
-impl From<DescriptorType> for c_uint{
+impl From<DescriptorType> for c_uint {
     fn from(descriptor_type: DescriptorType) -> Self {
-        match descriptor_type{
+        match descriptor_type {
             DescriptorType::Parameter => OCI_DTYPE_PARAM,
+        }
+    }
+}
+
+const OCI_FETCH_NEXT: c_ushort = 2;
+
+#[derive(Debug)]
+pub enum FetchType {
+    Next,
+}
+
+impl From<FetchType> for c_ushort {
+    fn from(fetch_type: FetchType) -> Self {
+        match fetch_type {
+            FetchType::Next => OCI_FETCH_NEXT,
         }
     }
 }
@@ -309,15 +345,15 @@ extern "C" {
     pub fn OCIEnvCreate(envhpp: &*mut OCIEnv,
                         mode: c_uint,
                         ctxp: *const c_void,
-                        //maloc_cb: extern "C" fn(*const c_void, size_t) -> *const c_void,
+                        // maloc_cb: extern "C" fn(*const c_void, size_t) -> *const c_void,
                         maloc_cb: *const c_void,
-                        //raloc_cb: extern "C" fn(*const c_void, *const c_void, size_t)
+                        // raloc_cb: extern "C" fn(*const c_void, *const c_void, size_t)
                         //                        -> *const c_void,
                         raloc_cb: *const c_void,
-                        //mfree_cb: extern "C" fn(*const c_void, *const c_void) -> *const c_void,
+                        // mfree_cb: extern "C" fn(*const c_void, *const c_void) -> *const c_void,
                         mfree_cb: *const c_void,
                         xtramemsz: size_t,
-                        //usrmempp: &*mut c_void)
+                        // usrmempp: &*mut c_void)
                         usrmempp: *const c_void)
                         -> c_int;
 
@@ -345,7 +381,7 @@ extern "C" {
                           hndlpp: &*mut c_void,
                           hnd_type: c_uint,
                           xtramem_sz: size_t,
-                          //usrmempp: &*mut c_void
+                          // usrmempp: &*mut c_void
                           usrmempp: *const c_void)
                           -> c_int;
 
@@ -532,28 +568,30 @@ extern "C" {
                         mode: c_uint)
                         -> c_int;
 
-    /// Returns a descriptor of a parameter specified by position in the describe handle or 
+    /// Returns a descriptor of a parameter specified by position in the describe handle or
     /// statement handle.
     /// See [Oracle docs](http://docs.oracle.com/database/122/LNOCI/
     /// handle-and-descriptor-functions.htm#GUID-35D2FF91-139B-4A5C-97C8-8BC29866CCA4) for more
     /// info.
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// Unsafe C
     pub fn OCIParamGet(hndlp: *const c_void,
                        htype: c_uint,
                        errhp: *mut OCIError,
-                       parmdpp: &*mut c_void,
-                       pos: c_uint) -> c_int;
+                       //parmdpp: &*mut c_void,
+                       parmdpp: &*mut OCIParam,
+                       pos: c_uint)
+                       -> c_int;
 
     /// Associates an item in a select list with the type and output data buffer.
     /// See [Oracle docs](http://docs.oracle.com/database/122/LNOCI/
     /// bind-define-describe-functions.htm#GUID-CFE5AA54-DEBC-42D3-8A27-AFF1E7815691) for more
     /// info.
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// Unsafe C
     pub fn OCIDefineByPos(stmtp: *mut OCIStmt,
                           defnpp: &*mut OCIDefine,
@@ -565,5 +603,21 @@ extern "C" {
                           indp: *mut c_void,
                           rlenp: *mut c_ushort,
                           rcodep: *mut c_ushort,
-                          mode: c_uint) -> c_int;
+                          mode: c_uint)
+                          -> c_int;
+
+    /// Fetches a row from the (scrollable) result set.
+    /// See [Oracle docs](http://docs.oracle.com/database/122/LNOCI/
+    /// statement-functions.htm#GUID-DF585B90-58BA-45FC-B7CE-6F7F987C03B9) for more info.
+    ///
+    /// # Safety
+    ///
+    /// Unsafe C
+    pub fn OCIStmtFetch2(stmthp: *mut OCIStmt,
+                         errhp: *mut OCIError,
+                         nrows: c_uint,
+                         orientation: c_ushort,
+                         fetchOffset: c_int,
+                         mode: c_uint)
+                         -> c_int;
 }

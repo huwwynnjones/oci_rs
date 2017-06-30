@@ -4,7 +4,7 @@ use oci_bindings::{OCIEnv, OCIEnvCreate, HandleType, OCIHandleFree, OCIServer, O
                    CredentialsType, OCISessionEnd, OCIStmt, OCIStmtPrepare2, SyntaxType,
                    OCIStmtRelease, OCIStmtExecute, OCISnapshot, OCITransCommit, OCIBind,
                    OCIBindByPos, StatementType, OCIAttrGet, OCIParam, OCIParamGet, OCIDefine,
-                   OCIDefineByPos, DescriptorType, SqlType};
+                   OCIDefineByPos, DescriptorType, SqlType, FetchType, OCIStmtFetch2};
 use oci_error::{OciError, get_error};
 use types::{ToSqlValue, SqlValue};
 use std::ptr;
@@ -442,6 +442,12 @@ impl<'conn> Statement<'conn> {
         }
     }
 
+    pub fn result(&mut self) -> Result<&Vec<Row>, OciError> {
+        let row = build_row(self.statement, self.connection.error)?;
+        self.result.push(row);
+        Ok(&self.result)
+    }
+
     pub fn commit(&self) -> Result<(), OciError> {
         let commit_result = unsafe {
             OCITransCommit(self.connection.service,
@@ -558,14 +564,22 @@ fn build_row(statement: *mut OCIStmt, error: *mut OCIError) -> Result<Row, OciEr
 
     let mut position: c_uint = 1;
     let parameter: *mut OCIParam = ptr::null_mut();
+    let parameter_ptr = parameter as *mut c_void;
     let mut columns: Vec<SqlValue> = Vec::new();
+    let mut define_bindings: Vec<*mut OCIDefine> = Vec::new();
+    let mut data_buffers: Vec<Vec<u8>> = Vec::new();
+    //let mut data_buffers: Vec<[u8; 1024]> = Vec::new();
+    let mut data_buffer_ptrs: Vec<*mut c_void> = Vec::new();
+    let mut sql_types: Vec<SqlType> = Vec::new();
 
     loop {
+        let index = (position - 1) as usize;
+
         let param_result = unsafe {
             OCIParamGet(statement as *const c_void,
                         HandleType::Statement.into(),
                         error,
-                        &(parameter as *mut c_void),
+                        &parameter,
                         position)
         };
 
@@ -590,36 +604,50 @@ fn build_row(statement: *mut OCIStmt, error: *mut OCIError) -> Result<Row, OciEr
                        DescriptorType::Parameter.into(),
                        data_type_ptr as *mut c_void,
                        &mut size,
-                       AttributeType::Parameter.into(),
+                       AttributeType::DataType.into(),
                        error)
         };
         match data_type_result.into() {
             ReturnCode::Success => (),
             _ => {
+                let code: c_uint = AttributeType::DataType.into();
+                let err_text = format!("Getting data type for parameter. 
+                                       Attr code {}.
+                                       Pos {}.
+                                       type {}.", code, position, data_type);
                 return Err(get_error(error as *mut c_void,
-                                    HandleType::Error,
-                                     "Getting data type for parameter"))
+                                     HandleType::Error,
+                                     &err_text))
             }
         }
 
-
-
-        let define: *mut OCIDefine = ptr::null_mut();
-        let sql_type: SqlType = data_type.into();
-        let mut data: Vec<u8> = Vec::with_capacity(sql_type.size());
-        let mut data_slice = &data;
+        // let define: *mut OCIDefine = ptr::null_mut();
+        define_bindings.push(ptr::null_mut());
+        // let sql_type: SqlType = data_type.into();
+        sql_types.push(data_type.into());
+        // let mut data: Vec<u8> = Vec::with_capacity(sql_type.size());
+        //let mut buffer = Vec::with_capacity(sql_types[index].size());
+        //data_buffers.push(Vec::with_capacity(sql_types[index].size()));
+        data_buffers.push(vec![0; sql_types[index].size()]);
+        //data_buffers[index].push(72 as u8);
+        //data_buffers.push(buffer);
+        //data_buffers.push(Vec::with_capacity(1024));
+        //data_buffers.push([0;1024]);
+        data_buffer_ptrs.push(data_buffers[index].as_mut_ptr() as *mut c_void);
+        //let data_slice = &mut data_buffers[index];
         let null_mut_ptr = ptr::null_mut();
         let indp = null_mut_ptr;
         let rlenp = null_mut_ptr as *mut c_ushort;
         let rcodep = null_mut_ptr as *mut c_ushort;
         let define_result = unsafe {
             OCIDefineByPos(statement,
-                           &define,
+                           &define_bindings[index],
                            error,
                            position,
-                           data_slice.as_mut_ptr() as *mut c_void,
-                           data_type.into(),
-                           sql_type.size(),
+                           //data_slice.as_mut_ptr() as *mut c_void,
+                           data_buffer_ptrs[index],
+                           sql_types[index].size() as c_int,
+                           data_type,
                            indp,
                            rlenp,
                            rcodep,
@@ -633,8 +661,34 @@ fn build_row(statement: *mut OCIStmt, error: *mut OCIError) -> Result<Row, OciEr
                                      "Getting column value"))
             }
         }
-
         position += 1;
+    }
+    
+    let nrows = 1 as c_uint;
+    let offset = 0 as c_int;
+    let fetch_result = unsafe {
+        OCIStmtFetch2(statement,
+                      error,
+                      nrows, 
+                      FetchType::Next.into(),
+                      offset, 
+                      EnvironmentMode::Default.into())
+    };
+    match fetch_result.into() {
+        ReturnCode::Success => (),
+        _ => return Err(get_error(error as *mut c_void, HandleType::Error, "Fetching")),
+    }
+
+    for (index, data) in data_buffers.iter().enumerate() {
+        //let mut l_data = Vec::new();
+        //for byte in data.iter(){
+        //    l_data.push(byte)
+        //}
+        //println!("data {:?}, size {}, cap {}", l_data, l_data.len(), l_data.capacity());
+        //println!("data {:?}, size {}, cap {}", data, data.len(), data.capacity());
+        let sql_value = SqlValue::create_from_raw(&data, &sql_types[index])?;
+        //let sql_value = SqlValue::SqlString("nothing".to_string());
+        columns.push(sql_value);
     }
     Ok(Row::create_row(columns))
 }

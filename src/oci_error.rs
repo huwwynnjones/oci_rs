@@ -1,10 +1,10 @@
 use std::error;
-use std::error::Error;
 use std::fmt;
 use std::ffi::NulError;
 use libc::{c_uint, c_uchar, c_int, c_void};
 use std::ptr;
 use oci_bindings::{OCIErrorGet, HandleType, ReturnCode};
+use std::string::FromUtf8Error;
 
 const MAX_ERROR_MESSAGE_SIZE: usize = 3024;
 
@@ -13,8 +13,7 @@ const MAX_ERROR_MESSAGE_SIZE: usize = 3024;
 #[derive(Debug)]
 pub enum OciError {
     Oracle(ErrorRecord),
-    NoSql,
-    Conversion,
+    Conversion(FromUtf8Error),
     Nul(NulError),
 }
 impl OciError{
@@ -35,12 +34,7 @@ impl fmt::Display for OciError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             OciError::Oracle(ref err) => write!(f, "{}", err),
-            OciError::NoSql => {
-                write!(f,
-                       "No prepared or direct SQL statement to execute. Call prepare() to prepare \
-                        one, or sql() to set one for direct execution")
-            }
-            OciError::Conversion => write!(f, "{}", self.description()),
+            OciError::Conversion(ref err) => write!(f, "{}", err),
             OciError::Nul(ref err) => write!(f, "Nul error: {}", err),
         }
     }
@@ -50,8 +44,7 @@ impl error::Error for OciError {
     fn description(&self) -> &str {
         match *self {
             OciError::Oracle(_) => "Oracle error",
-            OciError::NoSql => "No SQL to execute",
-            OciError::Conversion => "Cannot convert from OCI to Rust type",
+            OciError::Conversion(_) => "Cannot convert from OCI to Rust type",
             OciError::Nul(ref err) => err.description(),
         }
     }

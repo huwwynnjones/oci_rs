@@ -97,4 +97,55 @@ mod tests {
             panic!("{}", err)
         }
     }
+
+    #[test]
+    fn query(){
+
+        let conn = match Connection::new(CONNECTION, USER, PASSWORD) {
+            Ok(conn) => conn,
+            Err(err) => panic!("Failed to create a connection: {}", err),
+        };
+        let sql_drop = "DROP TABLE Cars";
+        let drop = match conn.create_prepared_statement(sql_drop) {
+            Ok(s) => s,
+            Err(err) => panic!("{}", err),
+        };
+        drop.execute().ok();
+        let sql_create = "CREATE TABLE Cars(CarId number(2), Name varchar(20))";
+        let create = match conn.create_prepared_statement(sql_create) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("{}", err),
+        };
+        if let Err(err) = create.execute() {
+            panic!("{}", err)
+        }
+        let sql_insert = "INSERT INTO Cars(CarId, Name) VALUES('12', 'BMW')";
+        let mut insert = match conn.create_prepared_statement(sql_insert) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("{}", err),
+        };
+        if let Err(err) = insert.execute() {
+            panic!("{}", err)
+        }
+        let sql_query = "SELECT * FROM Cars";
+        let mut select = match conn.create_prepared_statement(sql_query){
+            Ok(stmt) => stmt,
+            Err(err) => panic!("{}", err),
+        };
+        if let Err(err) = select.execute() {
+            panic!("{}", err)
+        }
+        let result = match select.result() {
+            Ok(res) => res,
+            Err(err) => panic!("{}", err),
+        };
+        if result.is_empty(){
+            panic!("Should not have an empty result")
+        }
+        let row = &result[0];
+        let car_id: i64 = row[0].value().expect("Not an i64");
+        assert_eq!(car_id, 12);
+        let car_name: String = row[1].value().expect("Not a string");
+        assert_eq!(car_name, "BMW")
+    }
 }
