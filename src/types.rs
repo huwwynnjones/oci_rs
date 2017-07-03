@@ -1,6 +1,8 @@
 use libc::{c_void, c_int, c_ushort};
-use oci_bindings::SqlType;
+use oci_bindings::SqlDataType;
 use oci_error::OciError;
+use byteorder::{BigEndian, ReadBytesExt, ByteOrder, LittleEndian};
+use std::ffi::CString;
 
 #[derive(Debug)]
 pub enum SqlValue {
@@ -29,22 +31,25 @@ impl SqlValue {
 
     pub fn oci_data_type(&self) -> c_ushort {
         match *self {
-            SqlValue::SqlString(..) => SqlType::SqlChar.into(),
-            SqlValue::SqlInteger(..) => SqlType::SqlInt.into(),
+            SqlValue::SqlString(..) => SqlDataType::SqlChar.into(),
+            SqlValue::SqlInteger(..) => SqlDataType::SqlInt.into(),
         }
     }
 
-    pub fn create_from_raw(data: &Vec<u8>, sql_type: &SqlType) -> Result<Self, OciError> {
+    pub fn create_from_raw(data: &Vec<u8>, sql_type: &SqlDataType) -> Result<Self, OciError> {
         match *sql_type {
-            SqlType::SqlChar => {
-                match String::from_utf8(Vec::from(&data[..])) {
-                    Ok(s) => Ok(SqlValue::SqlString(s.trim().to_string())),
-                    Err(err) => Err(OciError::Conversion(err)),
+            SqlDataType::SqlChar => {
+                //match String::from_utf8(Vec::from(&data[..])) {
+                match CString::new(&data[..]) {
+                    //Ok(s) => Ok(SqlValue::SqlString(s.trim().to_string())),
+                    Ok(s) => Ok(SqlValue::SqlString(s.into_string().unwrap())),
+                    //Err(err) => Err(OciError::Conversion(err)),
+                    Err(err) => panic!("ouch"),
                 }
-            }
-            SqlType::SqlInt | SqlType::SqlNum => {
-                let byte = data[0];
-                Ok(SqlValue::SqlInteger(byte.into()))
+            },
+            SqlDataType::SqlInt | SqlDataType::SqlNum => {
+                let i = LittleEndian::read_i64(&data); 
+                Ok(SqlValue::SqlInteger(i))
             }
         }
     }

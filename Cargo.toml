@@ -5,3 +5,4 @@ authors = ["Huw Wynn-Jones <huw@huwwynnjones.com>"]
 
 [dependencies]
 libc = "0.2.23"
+byteorder = "1.0.0"

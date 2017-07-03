@@ -79,6 +79,7 @@ const OCI_HTYPE_ENV: c_uint = 1;
 const OCI_HTYPE_ERROR: c_uint = 2;
 const OCI_HTYPE_SVCCTX: c_uint = 3;
 const OCI_HTYPE_STMT: c_uint = 4;
+const OCI_HTYPE_DEFINE: c_uint = 6;
 const OCI_HTYPE_SERVER: c_uint = 8;
 const OCI_HTYPE_SESSION: c_uint = 9;
 
@@ -88,6 +89,7 @@ pub enum HandleType {
     Error,
     Service,
     Statement,
+    Define,
     Server,
     Session,
 }
@@ -99,6 +101,7 @@ impl From<HandleType> for c_uint {
             HandleType::Error => OCI_HTYPE_ERROR,
             HandleType::Service => OCI_HTYPE_SVCCTX,
             HandleType::Statement => OCI_HTYPE_STMT,
+            HandleType::Define => OCI_HTYPE_DEFINE,
             HandleType::Server => OCI_HTYPE_SERVER,
             HandleType::Session => OCI_HTYPE_SESSION,
         }
@@ -112,6 +115,7 @@ impl From<c_uint> for HandleType {
             OCI_HTYPE_ERROR => HandleType::Error,
             OCI_HTYPE_SVCCTX => HandleType::Service,
             OCI_HTYPE_STMT => HandleType::Statement,
+            OCI_HTYPE_DEFINE => HandleType::Define,
             OCI_HTYPE_SERVER => HandleType::Server,
             OCI_HTYPE_SESSION => HandleType::Session,
             _ => {
@@ -125,19 +129,22 @@ impl From<c_uint> for HandleType {
 impl<'hnd> From<HandleType> for &'hnd str {
     fn from(handle_type: HandleType) -> Self {
         match handle_type {
-            HandleType::Error => "Error handle",
             HandleType::Environment => "Environment handle",
-            HandleType::Server => "Server handle",
+            HandleType::Error => "Error handle",
             HandleType::Service => "Service handle",
-            HandleType::Session => "Session handle",
             HandleType::Statement => "Statement handle",
+            HandleType::Define => "Define handle",
+            HandleType::Server => "Server handle",
+            HandleType::Session => "Session handle",
         }
     }
 }
 
+const OCI_ATTR_DATA_SIZE: c_uint = 1;
 const OCI_ATTR_DATA_TYPE: c_uint = 2;
 const OCI_ATTR_SERVER: c_uint = 6;
 const OCI_ATTR_SESSION: c_uint = 7;
+const OCI_ATTR_PARAM_COUNT: c_uint = 18;
 const OCI_ATTR_USERNAME: c_uint = 22;
 const OCI_ATTR_PASSWORD: c_uint = 23;
 const OCI_ATTR_STMT: c_uint = 24;
@@ -145,9 +152,11 @@ const OCI_ATTR_PARAM: c_uint = 124;
 
 #[derive(Debug)]
 pub enum AttributeType {
+    DataSize,
     DataType,
     Server,
     Session,
+    ParameterCount,
     UserName,
     Password,
     Statement,
@@ -157,9 +166,11 @@ pub enum AttributeType {
 impl From<AttributeType> for c_uint {
     fn from(attribute_type: AttributeType) -> Self {
         match attribute_type {
+            AttributeType::DataSize => OCI_ATTR_DATA_SIZE,
             AttributeType::DataType => OCI_ATTR_DATA_TYPE,
             AttributeType::Server => OCI_ATTR_SERVER,
             AttributeType::Session => OCI_ATTR_SESSION,
+            AttributeType::ParameterCount => OCI_ATTR_PARAM_COUNT,
             AttributeType::UserName => OCI_ATTR_USERNAME,
             AttributeType::Password => OCI_ATTR_PASSWORD,
             AttributeType::Statement => OCI_ATTR_STMT,
@@ -199,39 +210,39 @@ const SQLT_NUM: c_ushort = 2;
 const SQLT_INT: c_ushort = 3;
 
 #[derive(Debug)]
-pub enum SqlType {
+pub enum SqlDataType {
     SqlChar,
     SqlInt,
     SqlNum,
 }
-impl SqlType {
+impl SqlDataType {
     pub fn size(&self) -> usize {
         match *self {
-            SqlType::SqlChar => 1024,
-            SqlType::SqlInt => 64 / 8,
-            SqlType::SqlNum => 64 / 8,
+            SqlDataType::SqlChar => 1024,
+            SqlDataType::SqlInt => 64 / 8,
+            SqlDataType::SqlNum => 64 / 8,
         }
     }
 }
 
-impl From<SqlType> for c_ushort {
-    fn from(sql_type: SqlType) -> Self {
+impl From<SqlDataType> for c_ushort {
+    fn from(sql_type: SqlDataType) -> Self {
         match sql_type {
-            SqlType::SqlChar => SQLT_CHR,
-            SqlType::SqlInt => SQLT_INT,
-            SqlType::SqlNum => SQLT_NUM,
+            SqlDataType::SqlChar => SQLT_CHR,
+            SqlDataType::SqlInt => SQLT_INT,
+            SqlDataType::SqlNum => SQLT_NUM,
         }
     }
 }
 
-impl From<c_ushort> for SqlType {
+impl From<c_ushort> for SqlDataType {
     fn from(number: c_ushort) -> Self {
         match number {
-            SQLT_CHR => SqlType::SqlChar,
-            SQLT_INT => SqlType::SqlInt,
-            SQLT_NUM => SqlType::SqlNum,
+            SQLT_CHR => SqlDataType::SqlChar,
+            SQLT_INT => SqlDataType::SqlInt,
+            SQLT_NUM => SqlDataType::SqlNum,
             _ => {
-                panic!(format!("Found an unknown SqlType code, {}, this should not happen",
+                panic!(format!("Found an unknown SqlDataType code, {}, this should not happen",
                                number))
             }
         }
@@ -620,4 +631,14 @@ extern "C" {
                          fetchOffset: c_int,
                          mode: c_uint)
                          -> c_int;
+
+    /// Deallocates a previously allocated descriptor.
+    /// See [Oracle docs](http://docs.oracle.com/database/122/LNOCI/
+    /// handle-and-descriptor-functions.htm#LNOCI17134) for more info.
+    ///
+    /// # Safety
+    ///
+    /// Unsafe C
+    pub fn OCIDescriptorFree(descp: *mut c_void,
+                             desc_type: c_uint) -> c_int;
 }
