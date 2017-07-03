@@ -39,12 +39,9 @@ impl SqlValue {
     pub fn create_from_raw(data: &Vec<u8>, sql_type: &SqlDataType) -> Result<Self, OciError> {
         match *sql_type {
             SqlDataType::SqlChar => {
-                //match String::from_utf8(Vec::from(&data[..])) {
-                match CString::new(&data[..]) {
-                    //Ok(s) => Ok(SqlValue::SqlString(s.trim().to_string())),
-                    Ok(s) => Ok(SqlValue::SqlString(s.into_string().unwrap())),
-                    //Err(err) => Err(OciError::Conversion(err)),
-                    Err(err) => panic!("ouch"),
+                match String::from_utf8(Vec::from(&data[..])) {
+                    Ok(s) => Ok(SqlValue::SqlString(s.trim().to_string())),
+                    Err(err) => Err(OciError::Conversion(err)),
                 }
             },
             SqlDataType::SqlInt | SqlDataType::SqlNum => {
