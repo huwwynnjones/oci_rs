@@ -560,9 +560,9 @@ fn get_statement_type(statement: *mut OCIStmt,
     }
 }
 
+#[derive(Debug)]
 struct Column {
     handle: *mut OCIParam,
-    handle_ptr: *mut c_void,
     define: *mut OCIDefine,
     sql_type: SqlDataType,
     buffer: Vec<u8>,
@@ -574,18 +574,21 @@ impl Column {
            position: c_uint)
            -> Result<Column, OciError> {
         let parameter = allocate_parameter_handle(statement, error, position)?;
-        let data_size = column_data_size(parameter, error)?;
         let data_type = column_data_type(parameter, error)?;
+        let data_size = column_data_size(parameter, error)?;
         let (define, buffer, buffer_ptr) =
-            define_output_parameter(statement, error, position, data_size, data_type)?;
+            define_output_parameter(statement, error, position, data_size, &data_type)?;
         Ok(Column {
             handle: parameter,
-            handle_ptr: parameter as *mut c_void,
             define: define,
             sql_type: data_type.into(),
             buffer: buffer,
             buffer_ptr: buffer_ptr,
         })
+    }
+
+    fn create_sql_value(&self) -> Result<SqlValue, OciError> {
+        Ok(SqlValue::create_from_raw(&self.buffer, &self.sql_type)?)
     }
 }
 
@@ -593,11 +596,15 @@ fn define_output_parameter(statement: *mut OCIStmt,
                            error: *mut OCIError,
                            position: c_uint,
                            data_size: c_ushort,
-                           data_type: c_ushort)
+                           data_type: &SqlDataType)
                            -> Result<(*mut OCIDefine, Vec<u8>, *mut c_void), OciError> {
 
     let mut buffer = vec![0; data_size as usize];
     let buffer_ptr = buffer.as_mut_ptr() as *mut c_void;
+    let buffer_size = match data_type {
+        SqlDataType::SqlChar => data_size,
+        _ => data_type.size(),
+    };
     let define: *mut OCIDefine = ptr::null_mut();
     let null_mut_ptr = ptr::null_mut();
     let indp = null_mut_ptr;
@@ -609,8 +616,8 @@ fn define_output_parameter(statement: *mut OCIStmt,
                        error,
                        position,
                        buffer_ptr,
-                       data_size as c_int,
-                       data_type,
+                       buffer_size as c_int,
+                       data_type.as_external_type(),
                        indp,
                        rlenp,
                        rcodep,
@@ -649,7 +656,9 @@ fn column_data_size(parameter: *mut OCIParam, error: *mut OCIError) -> Result<c_
     }
 }
 
-fn column_data_type(parameter: *mut OCIParam, error: *mut OCIError) -> Result<c_ushort, OciError> {
+fn column_data_type(parameter: *mut OCIParam,
+                    error: *mut OCIError)
+                    -> Result<SqlDataType, OciError> {
     let mut data_type: c_ushort = 0;
     let data_type_ptr: *mut c_ushort = &mut data_type;
     let null_mut_ptr = ptr::null_mut();
@@ -663,7 +672,7 @@ fn column_data_type(parameter: *mut OCIParam, error: *mut OCIError) -> Result<c_
     };
 
     match size_result.into() {
-        ReturnCode::Success => Ok(data_type),
+        ReturnCode::Success => Ok(data_type.into()),
         _ => {
             return Err(get_error(error as *mut c_void,
                                  HandleType::Error,
@@ -696,14 +705,15 @@ fn allocate_parameter_handle(statement: *mut OCIStmt,
 
 impl Drop for Column {
     fn drop(&mut self) {
-        //let define_free_result =
+        // let define_free_result =
         //    unsafe { OCIHandleFree(self.define as *mut c_void, HandleType::Define.into()) };
-        //match define_free_result.into() {
+        // match define_free_result.into() {
         //    ReturnCode::Success => (),
         //    _ => panic!("Could not free the define handle in Column"),
-        //}
-        let descriptor_free_result =
-            unsafe { OCIDescriptorFree(self.handle_ptr, DescriptorType::Parameter.into()) };
+        // }
+        let descriptor_free_result = unsafe {
+            OCIDescriptorFree(self.handle as *mut c_void, DescriptorType::Parameter.into())
+        };
         match descriptor_free_result.into() {
             ReturnCode::Success => (),
             _ => panic!("Could not free the parameter descriptor in Column"),
@@ -750,8 +760,7 @@ fn build_row(statement: *mut OCIStmt, error: *mut OCIError) -> Result<Row, OciEr
 
     let mut sql_values = Vec::new();
     for col in columns {
-        let sql_value = SqlValue::create_from_raw(&col.buffer, &col.sql_type)?;
-        sql_values.push(sql_value)
+        sql_values.push(col.create_sql_value()?);
     }
     Ok(Row::new(sql_values))
 }

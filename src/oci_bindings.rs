@@ -216,11 +216,19 @@ pub enum SqlDataType {
     SqlNum,
 }
 impl SqlDataType {
-    pub fn size(&self) -> usize {
+    pub fn size(&self) -> c_ushort {
         match *self {
-            SqlDataType::SqlChar => 1024,
+            SqlDataType::SqlChar => 4000,
             SqlDataType::SqlInt => 64 / 8,
             SqlDataType::SqlNum => 64 / 8,
+        }
+    }
+
+    pub fn as_external_type(&self) -> c_ushort {
+        match *self{
+            SqlDataType::SqlChar => SQLT_CHR,
+            SqlDataType::SqlInt => SQLT_INT,
+            SqlDataType::SqlNum => SQLT_INT,
         }
     }
 }

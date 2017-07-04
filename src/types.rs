@@ -45,7 +45,7 @@ impl SqlValue {
                 }
             },
             SqlDataType::SqlInt | SqlDataType::SqlNum => {
-                let i = LittleEndian::read_i64(&data); 
+                let i = LittleEndian::read_i64(data); 
                 Ok(SqlValue::SqlInteger(i))
             }
         }

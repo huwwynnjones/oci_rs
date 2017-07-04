@@ -112,7 +112,7 @@ mod tests {
             Err(err) => panic!("{}", err),
         };
         drop.execute().ok();
-        let sql_create = "CREATE TABLE Cars(CarId number(2), Name varchar(20))";
+        let sql_create = "CREATE TABLE Cars(CarId integer, Name varchar(20))";
         let create = match conn.create_prepared_statement(sql_create) {
             Ok(stmt) => stmt,
             Err(err) => panic!("{}", err),
