@@ -356,7 +356,7 @@ pub struct Statement<'conn> {
     statement: *mut OCIStmt,
     bindings: Vec<*mut OCIBind>,
     values: Vec<SqlValue>,
-    result: Vec<Row>,
+    result_set: Vec<Row>,
 }
 impl<'conn> Statement<'conn> {
     fn new(connection: &'conn Connection, sql: &str) -> Result<Self, OciError> {
@@ -366,7 +366,7 @@ impl<'conn> Statement<'conn> {
             statement: statement,
             bindings: Vec::new(),
             values: Vec::new(),
-            result: Vec::new(),
+            result_set: Vec::new(),
         })
     }
 
@@ -443,10 +443,9 @@ impl<'conn> Statement<'conn> {
         }
     }
 
-    pub fn result(&mut self) -> Result<&Vec<Row>, OciError> {
-        let row = build_row(self.statement, self.connection.error)?;
-        self.result.push(row);
-        Ok(&self.result)
+    pub fn result_set(&mut self) -> Result<&Vec<Row>, OciError> {
+        self.result_set = build_result_set(self.statement, self.connection.error)?;
+        Ok(&self.result_set)
     }
 
     pub fn commit(&self) -> Result<(), OciError> {
@@ -601,7 +600,7 @@ fn define_output_parameter(statement: *mut OCIStmt,
 
     let mut buffer = vec![0; data_size as usize];
     let buffer_ptr = buffer.as_mut_ptr() as *mut c_void;
-    let buffer_size = match data_type {
+    let buffer_size = match *data_type {
         SqlDataType::SqlChar => data_size,
         _ => data_type.size(),
     };
@@ -746,26 +745,44 @@ fn number_of_columns(statement: *mut OCIStmt, error: *mut OCIError) -> Result<c_
 }
 
 
-fn build_row(statement: *mut OCIStmt, error: *mut OCIError) -> Result<Row, OciError> {
+fn build_result_set(statement: *mut OCIStmt, error: *mut OCIError) -> Result<Vec<Row>, OciError> {
+    
+    let mut rows = Vec::new();
+    
+    loop {
+        let column_count = number_of_columns(statement, error)?;
+        let mut columns = Vec::new();
 
-    let column_count = number_of_columns(statement, error)?;
-    let mut columns = Vec::new();
+        for position in 1..(column_count + 1) {
+            let column = Column::new(statement, error, position)?;
+            columns.push(column)
+        }
 
-    for position in 1..(column_count + 1) {
-        let column = Column::new(statement, error, position)?;
-        columns.push(column)
+        match fetch_next_row(statement, error){
+            Ok(result) => {
+                match result {
+                    FetchResult::Data => (),
+                    FetchResult::NoData => break,
+                }
+            },
+            Err(err) => return Err(err),
+        }
+
+        let mut sql_values = Vec::new();
+        for col in columns {
+            sql_values.push(col.create_sql_value()?);
+        }
+        rows.push(Row::new(sql_values))
     }
-
-    fetch_next_row(statement, error)?;
-
-    let mut sql_values = Vec::new();
-    for col in columns {
-        sql_values.push(col.create_sql_value()?);
-    }
-    Ok(Row::new(sql_values))
+    Ok(rows)
 }
 
-fn fetch_next_row(statement: *mut OCIStmt, error: *mut OCIError) -> Result<(), OciError> {
+enum FetchResult{
+    Data,
+    NoData,
+}
+
+fn fetch_next_row(statement: *mut OCIStmt, error: *mut OCIError) -> Result<FetchResult, OciError> {
     let nrows = 1 as c_uint;
     let offset = 0 as c_int;
     let fetch_result = unsafe {
@@ -777,7 +794,8 @@ fn fetch_next_row(statement: *mut OCIStmt, error: *mut OCIError) -> Result<(), O
                       EnvironmentMode::Default.into())
     };
     match fetch_result.into() {
-        ReturnCode::Success => Ok(()),
+        ReturnCode::Success => Ok(FetchResult::Data),
+        ReturnCode::NoData => Ok(FetchResult::NoData),
         _ => return Err(get_error(error as *mut c_void, HandleType::Error, "Fetching")),
     }
 }

@@ -121,7 +121,7 @@ mod tests {
             panic!("{}", err)
         }
         let sql_insert = "INSERT INTO Cars(CarId, Name) VALUES('12', 'BMW')";
-        let mut insert = match conn.create_prepared_statement(sql_insert) {
+        let insert = match conn.create_prepared_statement(sql_insert) {
             Ok(stmt) => stmt,
             Err(err) => panic!("{}", err),
         };
@@ -136,17 +136,79 @@ mod tests {
         if let Err(err) = select.execute() {
             panic!("{}", err)
         }
-        let result = match select.result() {
+        let result_set = match select.result_set() {
             Ok(res) => res,
             Err(err) => panic!("{}", err),
         };
-        if result.is_empty(){
+        if result_set.is_empty(){
             panic!("Should not have an empty result")
         }
-        let row = &result[0];
+        let row = &result_set[0];
         let car_id: i64 = row[0].value().expect("Not an i64");
         assert_eq!(car_id, 12);
         let car_name: String = row[1].value().expect("Not a string");
         assert_eq!(car_name, "BMW")
+    }
+
+    #[test]
+    fn multi_row_query(){
+        let conn = match Connection::new(CONNECTION, USER, PASSWORD) {
+            Ok(conn) => conn,
+            Err(err) => panic!("Failed to create a connection: {}", err),
+        };
+        let sql_drop = "DROP TABLE Flowers";
+        let drop = match conn.create_prepared_statement(sql_drop) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("{}", err),
+        };
+        drop.execute().ok();
+        let sql_create = "CREATE TABLE Flowers(FlowerId integer, Name varchar(20))";
+        let create = match conn.create_prepared_statement(sql_create) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("{}", err),
+        };
+        if let Err(err) = create.execute() {
+            panic!("{}", err)
+        }
+        let sql_insert = "INSERT INTO Flowers(FlowerId, Name) VALUES(:id, :name)";
+        let mut insert = match conn.create_prepared_statement(sql_insert) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("{}", err),
+        };
+        if let Err(err) = insert.bind(&[&1, &"Rose".to_string()]) {
+            panic!("{}", err)
+        }
+        if let Err(err) = insert.execute(){
+            panic!("{}", err)
+        }
+        if let Err(err) = insert.bind(&[&2, &"Tulip".to_string()]) {
+            panic!("{}", err)
+        }
+        if let Err(err) = insert.execute(){
+            panic!("{}", err)
+        }
+        let sql_query = "SELECT * FROM Flowers";
+        let mut select = match conn.create_prepared_statement(sql_query){
+            Ok(stmt) => stmt,
+            Err(err) => panic!("{}", err),
+        };
+        if let Err(err) = select.execute() {
+            panic!("{}", err)
+        }
+        let result_set = match select.result_set() {
+            Ok(res) => res,
+            Err(err) => panic!("{}", err),
+        };
+        if result_set.is_empty(){
+            panic!("Should not have an empty result")
+        }
+        let pairs = [(1, "Rose"), (2, "Tulip")];
+        for (index, pair) in pairs.iter().enumerate() {
+            let row = &result_set[index];
+            let flower_id: i64 = row[0].value().expect("Not an i64");
+            let flower_name: String = row[1].value().expect("Not a string");
+            assert_eq!(flower_id, pair.0);
+            assert_eq!(flower_name, pair.1);
+        }
     }
 }

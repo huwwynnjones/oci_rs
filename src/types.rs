@@ -1,8 +1,7 @@
 use libc::{c_void, c_int, c_ushort};
 use oci_bindings::SqlDataType;
 use oci_error::OciError;
-use byteorder::{BigEndian, ReadBytesExt, ByteOrder, LittleEndian};
-use std::ffi::CString;
+use byteorder::{ByteOrder, LittleEndian};
 
 #[derive(Debug)]
 pub enum SqlValue {
