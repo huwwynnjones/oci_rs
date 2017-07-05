@@ -211,4 +211,69 @@ mod tests {
             assert_eq!(flower_name, pair.1);
         }
     }
+
+    #[test]
+    fn lazy_multi_row_query(){
+        let conn = match Connection::new(CONNECTION, USER, PASSWORD) {
+            Ok(conn) => conn,
+            Err(err) => panic!("Failed to create a connection: {}", err),
+        };
+        let sql_drop = "DROP TABLE Birds";
+        let drop = match conn.create_prepared_statement(sql_drop) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("{}", err),
+        };
+        drop.execute().ok();
+        let sql_create = "CREATE TABLE Birds(BirdId integer, Name varchar(20))";
+        let create = match conn.create_prepared_statement(sql_create) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("{}", err),
+        };
+        if let Err(err) = create.execute() {
+            panic!("{}", err)
+        }
+        let sql_insert = "INSERT INTO Birds(BirdId, Name) VALUES(:id, :name)";
+        let mut insert = match conn.create_prepared_statement(sql_insert) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("{}", err),
+        };
+        if let Err(err) = insert.bind(&[&1, &"Chafinch".to_string()]) {
+            panic!("{}", err)
+        }
+        if let Err(err) = insert.execute(){
+            panic!("{}", err)
+        }
+        if let Err(err) = insert.bind(&[&2, &"Eagle".to_string()]) {
+            panic!("{}", err)
+        }
+        if let Err(err) = insert.execute(){
+            panic!("{}", err)
+        }
+        let sql_query = "SELECT * FROM Birds";
+        let select = match conn.create_prepared_statement(sql_query){
+            Ok(stmt) => stmt,
+            Err(err) => panic!("{}", err),
+        };
+        if let Err(err) = select.execute() {
+            panic!("{}", err)
+        }
+        let mut result_set = Vec::new();
+        for row_result in select.lazy_result_set(){
+            match row_result{
+                Ok(row) => result_set.push(row),
+                Err(err) => panic!("{}", err),
+            }
+        }
+        if result_set.is_empty(){
+            panic!("Should not have an empty result")
+        }
+        let pairs = [(1, "Chafinch"), (2, "Eagle")];
+        for (index, pair) in pairs.iter().enumerate() {
+            let row = &result_set[index];
+            let bird_id: i64 = row[0].value().expect("Not an i64");
+            let bird_name: String = row[1].value().expect("Not a string");
+            assert_eq!(bird_id, pair.0);
+            assert_eq!(bird_name, pair.1);
+        }
+    }
 }
