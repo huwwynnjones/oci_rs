@@ -240,7 +240,6 @@ fn set_session_in_service(service: *mut OCISvcCtx,
                           session: *mut OCISession,
                           error: *mut OCIError)
                           -> Result<(), OciError> {
-
     let size: c_uint = 0;
     set_handle_attribute(service as *mut c_void,
                          HandleType::Service.into(),
@@ -511,7 +510,7 @@ impl<'stmt> Iterator for RowIter<'stmt> {
     }
 }
 
-// release statement
+/// Release statement
 fn release_statement(statement: *mut OCIStmt, error: *mut OCIError) -> Result<(), OciError> {
 
     let key_ptr = ptr::null();
@@ -534,7 +533,7 @@ fn release_statement(statement: *mut OCIStmt, error: *mut OCIError) -> Result<()
     }
 }
 
-/// create statement handle and prepare sql
+/// Create statement handle and prepare sql
 fn prepare_statement(connection: &Connection, sql: &str) -> Result<*mut OCIStmt, OciError> {
     let statement: *mut OCIStmt = ptr::null_mut();
     let sql_ptr = sql.as_ptr();
@@ -563,7 +562,7 @@ fn prepare_statement(connection: &Connection, sql: &str) -> Result<*mut OCIStmt,
     }
 }
 
-/// find out what sort of statement was prepared
+/// Find out what sort of statement was prepared
 fn get_statement_type(statement: *mut OCIStmt,
                       error: *mut OCIError)
                       -> Result<StatementType, OciError> {
@@ -617,8 +616,8 @@ impl Column {
         })
     }
 
-    fn create_sql_value(&self) -> Result<SqlValue, OciError> {
-        Ok(SqlValue::create_from_raw(&self.buffer, &self.sql_type)?)
+    fn create_sql_value(&self, error: *mut OCIError) -> Result<SqlValue, OciError> {
+        Ok(SqlValue::create_from_raw(&self.buffer, &self.sql_type, error)?)
     }
 }
 
@@ -628,13 +627,13 @@ fn define_output_parameter(statement: *mut OCIStmt,
                            data_size: c_ushort,
                            data_type: &SqlDataType)
                            -> Result<(*mut OCIDefine, Vec<u8>, *mut c_void), OciError> {
-
     let mut buffer = vec![0; data_size as usize];
     let buffer_ptr = buffer.as_mut_ptr() as *mut c_void;
-    let buffer_size = match *data_type {
-        SqlDataType::SqlChar => data_size,
-        _ => data_type.size(),
-    };
+    //let buffer_size = match *data_type {
+    //    SqlDataType::SqlChar => data_size,
+    //    _ => data_type.size(),
+    //};
+    let buffer_size = data_size;
     let define: *mut OCIDefine = ptr::null_mut();
     let null_mut_ptr = ptr::null_mut();
     let indp = null_mut_ptr;
@@ -647,7 +646,7 @@ fn define_output_parameter(statement: *mut OCIStmt,
                        position,
                        buffer_ptr,
                        buffer_size as c_int,
-                       data_type.as_external_type(),
+                       data_type.into(),
                        indp,
                        rlenp,
                        rcodep,
@@ -675,7 +674,6 @@ fn column_data_size(parameter: *mut OCIParam, error: *mut OCIError) -> Result<c_
                    AttributeType::DataSize.into(),
                    error)
     };
-
     match size_result.into() {
         ReturnCode::Success => Ok(size),
         _ => {
@@ -700,7 +698,6 @@ fn column_data_type(parameter: *mut OCIParam,
                    AttributeType::DataType.into(),
                    error)
     };
-
     match size_result.into() {
         ReturnCode::Success => Ok(data_type.into()),
         _ => {
@@ -798,7 +795,7 @@ fn build_result_row(statement: *mut OCIStmt,
 
     let mut sql_values = Vec::new();
     for col in columns {
-        sql_values.push(col.create_sql_value()?);
+        sql_values.push(col.create_sql_value(error)?);
     }
     Ok(Some(Row::new(sql_values)))
 }

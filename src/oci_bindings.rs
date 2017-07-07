@@ -1,4 +1,5 @@
 use libc::{c_uint, c_int, c_void, c_uchar, size_t, c_ushort};
+use std::ops::Deref;
 
 
 
@@ -33,6 +34,8 @@ pub enum OCIBind {}
 pub enum OCIParam {}
 #[derive(Debug)]
 pub enum OCIDefine {}
+#[derive(Debug)]
+pub enum OCINumber {}
 
 const OCI_DEFAULT: c_uint = 0;
 const OCI_THREADED: c_uint = 1;
@@ -243,6 +246,15 @@ impl From<SqlDataType> for c_ushort {
     }
 }
 
+impl<'a> From<&'a SqlDataType> for c_ushort {
+    fn from(sql_type: &SqlDataType) -> Self {
+        match *sql_type {
+            SqlDataType::SqlChar => SQLT_CHR,
+            SqlDataType::SqlInt => SQLT_INT,
+            SqlDataType::SqlNum => SQLT_NUM,
+        }
+    }
+}
 impl From<c_ushort> for SqlDataType {
     fn from(number: c_ushort) -> Self {
         match number {
@@ -256,6 +268,7 @@ impl From<c_ushort> for SqlDataType {
         }
     }
 }
+
 
 const OCI_STMT_UNKNOWN: c_uint = 0;
 const OCI_STMT_SELECT: c_uint = 1;
@@ -346,6 +359,24 @@ impl From<FetchType> for c_ushort {
     fn from(fetch_type: FetchType) -> Self {
         match fetch_type {
             FetchType::Next => OCI_FETCH_NEXT,
+        }
+    }
+}
+
+const OCI_NUMBER_UNSIGNED: c_uint = 0;
+const OCI_NUMBER_SIGNED: c_uint = 2;
+
+#[derive(Debug)]
+pub enum OciNumberType{
+    Unsigned,
+    Signed,
+}
+
+impl From<OciNumberType> for c_uint{
+    fn from(oci_number_type: OciNumberType) -> Self {
+        match oci_number_type {
+            OciNumberType::Unsigned => OCI_NUMBER_UNSIGNED,
+            OciNumberType::Signed => OCI_NUMBER_SIGNED,
         }
     }
 }
@@ -649,4 +680,28 @@ extern "C" {
     /// Unsafe C
     pub fn OCIDescriptorFree(descp: *mut c_void,
                              desc_type: c_uint) -> c_int;
+
+    /// Tests if an OCINumber is an integer.
+    /// See [Oracle docs](http://docs.oracle.com/database/122/LNOCI/
+    /// oci-NUMBER-functions.htm#LNOCI17472) for more info.
+    /// 
+    /// # Safety
+    /// 
+    /// Unsafe C
+    pub fn OCINumberIsInt(err: *mut OCIError,
+                          number: *const OCINumber,
+                          boolean: *mut bool) -> c_int;
+
+    /// Converts an Oracle NUMBER type to integer.
+    /// See [Oracle docs](http://docs.oracle.com/database/122/LNOCI/
+    /// oci-NUMBER-functions.htm#GUID-067F138E-E689-4922-9ED7-4A7B0E46447E) for more info.
+    /// 
+    /// # Safety
+    /// 
+    /// Unsafe C
+    pub fn OCINumberToInt(err: *mut OCIError,
+                          number: *const OCINumber,
+                          rsl_length: c_uint,
+                          rsl_flag: c_uint,
+                          rsl: *mut c_void) -> c_int;
 }
