@@ -100,7 +100,7 @@ mod tests {
     }
 
     #[test]
-    fn query(){
+    fn query() {
 
         let conn = match Connection::new(CONNECTION, USER, PASSWORD) {
             Ok(conn) => conn,
@@ -129,7 +129,7 @@ mod tests {
             panic!("{}", err)
         }
         let sql_query = "SELECT * FROM Cars";
-        let mut select = match conn.create_prepared_statement(sql_query){
+        let mut select = match conn.create_prepared_statement(sql_query) {
             Ok(stmt) => stmt,
             Err(err) => panic!("{}", err),
         };
@@ -140,7 +140,7 @@ mod tests {
             Ok(res) => res,
             Err(err) => panic!("{}", err),
         };
-        if result_set.is_empty(){
+        if result_set.is_empty() {
             panic!("Should not have an empty result")
         }
         let row = &result_set[0];
@@ -151,7 +151,7 @@ mod tests {
     }
 
     #[test]
-    fn multi_row_query(){
+    fn multi_row_query() {
         let conn = match Connection::new(CONNECTION, USER, PASSWORD) {
             Ok(conn) => conn,
             Err(err) => panic!("Failed to create a connection: {}", err),
@@ -178,17 +178,17 @@ mod tests {
         if let Err(err) = insert.bind(&[&1, &"Rose".to_string()]) {
             panic!("{}", err)
         }
-        if let Err(err) = insert.execute(){
+        if let Err(err) = insert.execute() {
             panic!("{}", err)
         }
         if let Err(err) = insert.bind(&[&2, &"Tulip".to_string()]) {
             panic!("{}", err)
         }
-        if let Err(err) = insert.execute(){
+        if let Err(err) = insert.execute() {
             panic!("{}", err)
         }
         let sql_query = "SELECT * FROM Flowers";
-        let mut select = match conn.create_prepared_statement(sql_query){
+        let mut select = match conn.create_prepared_statement(sql_query) {
             Ok(stmt) => stmt,
             Err(err) => panic!("{}", err),
         };
@@ -199,7 +199,7 @@ mod tests {
             Ok(res) => res,
             Err(err) => panic!("{}", err),
         };
-        if result_set.is_empty(){
+        if result_set.is_empty() {
             panic!("Should not have an empty result")
         }
         let pairs = [(1, "Rose"), (2, "Tulip")];
@@ -213,7 +213,7 @@ mod tests {
     }
 
     #[test]
-    fn lazy_multi_row_query(){
+    fn lazy_multi_row_query() {
         let conn = match Connection::new(CONNECTION, USER, PASSWORD) {
             Ok(conn) => conn,
             Err(err) => panic!("Failed to create a connection: {}", err),
@@ -240,17 +240,17 @@ mod tests {
         if let Err(err) = insert.bind(&[&1, &"Chafinch".to_string()]) {
             panic!("{}", err)
         }
-        if let Err(err) = insert.execute(){
+        if let Err(err) = insert.execute() {
             panic!("{}", err)
         }
         if let Err(err) = insert.bind(&[&2, &"Eagle".to_string()]) {
             panic!("{}", err)
         }
-        if let Err(err) = insert.execute(){
+        if let Err(err) = insert.execute() {
             panic!("{}", err)
         }
         let sql_query = "SELECT * FROM Birds";
-        let select = match conn.create_prepared_statement(sql_query){
+        let select = match conn.create_prepared_statement(sql_query) {
             Ok(stmt) => stmt,
             Err(err) => panic!("{}", err),
         };
@@ -258,13 +258,13 @@ mod tests {
             panic!("{}", err)
         }
         let mut result_set = Vec::new();
-        for row_result in select.lazy_result_set(){
-            match row_result{
+        for row_result in select.lazy_result_set() {
+            match row_result {
                 Ok(row) => result_set.push(row),
                 Err(err) => panic!("{}", err),
             }
         }
-        if result_set.is_empty(){
+        if result_set.is_empty() {
             panic!("Should not have an empty result")
         }
         let pairs = [(1, "Chafinch"), (2, "Eagle")];
@@ -274,6 +274,69 @@ mod tests {
             let bird_name: String = row[1].value().expect("Not a string");
             assert_eq!(bird_id, pair.0);
             assert_eq!(bird_name, pair.1);
+        }
+    }
+
+    #[test]
+    fn number_conversion() {
+        let conn = match Connection::new(CONNECTION, USER, PASSWORD) {
+            Ok(conn) => conn,
+            Err(err) => panic!("Failed to create a connection: {}", err),
+        };
+        let sql_drop = "DROP TABLE Sweets";
+        let drop = match conn.create_prepared_statement(sql_drop) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("{}", err),
+        };
+        drop.execute().ok();
+        let sql_create = "CREATE TABLE Sweets(SweetId integer, Name varchar(20), Price float)";
+        let create = match conn.create_prepared_statement(sql_create) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("{}", err),
+        };
+        if let Err(err) = create.execute() {
+            panic!("{}", err)
+        }
+        let sql_insert = "INSERT INTO Sweets(SweetId, Name, Price) VALUES(:id, :name, :price)";
+        let mut insert = match conn.create_prepared_statement(sql_insert) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("{}", err),
+        };
+        let values = [(1, "Toffee", 22.5), (2, "Haribo", -4.0), (3, "Gobstoppers", 34.5657)];
+        for value in values.iter() {
+            if let Err(err) = insert.bind(&[&value.0, &value.1.to_string(), &value.2]) {
+                panic!("{}", err)
+            }
+            if let Err(err) = insert.execute() {
+                panic!("{}", err)
+            }
+        }
+        let sql_query = "SELECT * FROM Sweets";
+        let mut query = match conn.create_prepared_statement(sql_query) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("{}", err),
+        };
+        if let Err(err) = query.execute() {
+            panic!("{}", err)
+        }
+        let result_set = match query.result_set() {
+            Ok(res) => res,
+            Err(err) => panic!("{}", err),
+        };
+        if result_set.is_empty() {
+            panic!("Should not have an empty result")
+        }
+        for (index, value) in values.iter().enumerate() {
+            let row = &result_set[index];
+            let sweet_id: i64 = row[0].value().expect("Not an i64");
+            let sweet_name: String = row[1].value().expect("Not a string");
+            let sweet_price: f64 = match row[2].value() {
+                Some(p) => p,
+                None => panic!("{:?}", row[2]),
+            };
+            assert_eq!(sweet_id, value.0);
+            assert_eq!(sweet_name, value.1);
+            assert_eq!(sweet_price, value.2);
         }
     }
 }

@@ -1,18 +1,4 @@
 use libc::{c_uint, c_int, c_void, c_uchar, size_t, c_ushort};
-use std::ops::Deref;
-
-
-
-const OCI_SUCCESS: c_int = 0;
-const OCI_ERROR: c_int = -1;
-const OCI_NO_DATA: c_int = 100;
-const OCI_INVALID_HANDLE: c_int = -2;
-
-
-const OCI_CRED_RDBMS: c_uint = 1;
-
-const OCI_NTV_SYNTAX: c_uint = 1;
-
 
 #[derive(Debug)]
 pub enum OCIEnv {}
@@ -34,8 +20,6 @@ pub enum OCIBind {}
 pub enum OCIParam {}
 #[derive(Debug)]
 pub enum OCIDefine {}
-#[derive(Debug)]
-pub enum OCINumber {}
 
 const OCI_DEFAULT: c_uint = 0;
 const OCI_THREADED: c_uint = 1;
@@ -54,6 +38,11 @@ impl From<EnvironmentMode> for c_uint {
         }
     }
 }
+
+const OCI_SUCCESS: c_int = 0;
+const OCI_ERROR: c_int = -1;
+const OCI_NO_DATA: c_int = 100;
+const OCI_INVALID_HANDLE: c_int = -2;
 
 #[derive(Debug)]
 pub enum ReturnCode {
@@ -145,6 +134,8 @@ impl<'hnd> From<HandleType> for &'hnd str {
 
 const OCI_ATTR_DATA_SIZE: c_uint = 1;
 const OCI_ATTR_DATA_TYPE: c_uint = 2;
+const OCI_ATTR_PRECISION: c_uint = 5;
+const OCI_ATTR_SCALE: c_uint = 6;
 const OCI_ATTR_SERVER: c_uint = 6;
 const OCI_ATTR_SESSION: c_uint = 7;
 const OCI_ATTR_PARAM_COUNT: c_uint = 18;
@@ -157,6 +148,8 @@ const OCI_ATTR_PARAM: c_uint = 124;
 pub enum AttributeType {
     DataSize,
     DataType,
+    Precision,
+    Scale,
     Server,
     Session,
     ParameterCount,
@@ -171,6 +164,8 @@ impl From<AttributeType> for c_uint {
         match attribute_type {
             AttributeType::DataSize => OCI_ATTR_DATA_SIZE,
             AttributeType::DataType => OCI_ATTR_DATA_TYPE,
+            AttributeType::Precision => OCI_ATTR_PRECISION,
+            AttributeType::Scale => OCI_ATTR_SCALE,
             AttributeType::Server => OCI_ATTR_SERVER,
             AttributeType::Session => OCI_ATTR_SESSION,
             AttributeType::ParameterCount => OCI_ATTR_PARAM_COUNT,
@@ -181,6 +176,8 @@ impl From<AttributeType> for c_uint {
         }
     }
 }
+
+const OCI_CRED_RDBMS: c_uint = 1;
 
 #[derive(Debug)]
 pub enum CredentialsType {
@@ -194,6 +191,8 @@ impl From<CredentialsType> for c_uint {
         }
     }
 }
+
+const OCI_NTV_SYNTAX: c_uint = 1;
 
 #[derive(Debug)]
 pub enum SyntaxType {
@@ -211,27 +210,20 @@ impl From<SyntaxType> for c_uint {
 const SQLT_CHR: c_ushort = 1;
 const SQLT_NUM: c_ushort = 2;
 const SQLT_INT: c_ushort = 3;
+const SQLT_FLT: c_ushort = 4;
 
 #[derive(Debug)]
 pub enum SqlDataType {
     SqlChar,
     SqlInt,
     SqlNum,
+    SqlFloat,
 }
 impl SqlDataType {
     pub fn size(&self) -> c_ushort {
         match *self {
             SqlDataType::SqlChar => 4000,
-            SqlDataType::SqlInt => 64 / 8,
-            SqlDataType::SqlNum => 64 / 8,
-        }
-    }
-
-    pub fn as_external_type(&self) -> c_ushort {
-        match *self{
-            SqlDataType::SqlChar => SQLT_CHR,
-            SqlDataType::SqlInt => SQLT_INT,
-            SqlDataType::SqlNum => SQLT_INT,
+            SqlDataType::SqlInt | SqlDataType::SqlNum | SqlDataType::SqlFloat => 8,
         }
     }
 }
@@ -242,6 +234,7 @@ impl From<SqlDataType> for c_ushort {
             SqlDataType::SqlChar => SQLT_CHR,
             SqlDataType::SqlInt => SQLT_INT,
             SqlDataType::SqlNum => SQLT_NUM,
+            SqlDataType::SqlFloat => SQLT_FLT,
         }
     }
 }
@@ -252,6 +245,7 @@ impl<'a> From<&'a SqlDataType> for c_ushort {
             SqlDataType::SqlChar => SQLT_CHR,
             SqlDataType::SqlInt => SQLT_INT,
             SqlDataType::SqlNum => SQLT_NUM,
+            SqlDataType::SqlFloat => SQLT_FLT,
         }
     }
 }
@@ -261,6 +255,7 @@ impl From<c_ushort> for SqlDataType {
             SQLT_CHR => SqlDataType::SqlChar,
             SQLT_INT => SqlDataType::SqlInt,
             SQLT_NUM => SqlDataType::SqlNum,
+            SQLT_FLT => SqlDataType::SqlFloat,
             _ => {
                 panic!(format!("Found an unknown SqlDataType code, {}, this should not happen",
                                number))
@@ -268,7 +263,6 @@ impl From<c_ushort> for SqlDataType {
         }
     }
 }
-
 
 const OCI_STMT_UNKNOWN: c_uint = 0;
 const OCI_STMT_SELECT: c_uint = 1;
@@ -367,12 +361,12 @@ const OCI_NUMBER_UNSIGNED: c_uint = 0;
 const OCI_NUMBER_SIGNED: c_uint = 2;
 
 #[derive(Debug)]
-pub enum OciNumberType{
+pub enum OciNumberType {
     Unsigned,
     Signed,
 }
 
-impl From<OciNumberType> for c_uint{
+impl From<OciNumberType> for c_uint {
     fn from(oci_number_type: OciNumberType) -> Self {
         match oci_number_type {
             OciNumberType::Unsigned => OCI_NUMBER_UNSIGNED,
@@ -630,7 +624,7 @@ extern "C" {
     pub fn OCIParamGet(hndlp: *const c_void,
                        htype: c_uint,
                        errhp: *mut OCIError,
-                       //parmdpp: &*mut c_void,
+                       // parmdpp: &*mut c_void,
                        parmdpp: &*mut OCIParam,
                        pos: c_uint)
                        -> c_int;
@@ -678,30 +672,6 @@ extern "C" {
     /// # Safety
     ///
     /// Unsafe C
-    pub fn OCIDescriptorFree(descp: *mut c_void,
-                             desc_type: c_uint) -> c_int;
+    pub fn OCIDescriptorFree(descp: *mut c_void, desc_type: c_uint) -> c_int;
 
-    /// Tests if an OCINumber is an integer.
-    /// See [Oracle docs](http://docs.oracle.com/database/122/LNOCI/
-    /// oci-NUMBER-functions.htm#LNOCI17472) for more info.
-    /// 
-    /// # Safety
-    /// 
-    /// Unsafe C
-    pub fn OCINumberIsInt(err: *mut OCIError,
-                          number: *const OCINumber,
-                          boolean: *mut bool) -> c_int;
-
-    /// Converts an Oracle NUMBER type to integer.
-    /// See [Oracle docs](http://docs.oracle.com/database/122/LNOCI/
-    /// oci-NUMBER-functions.htm#GUID-067F138E-E689-4922-9ED7-4A7B0E46447E) for more info.
-    /// 
-    /// # Safety
-    /// 
-    /// Unsafe C
-    pub fn OCINumberToInt(err: *mut OCIError,
-                          number: *const OCINumber,
-                          rsl_length: c_uint,
-                          rsl_flag: c_uint,
-                          rsl: *mut c_void) -> c_int;
 }

@@ -10,7 +10,7 @@ use oci_error::{OciError, get_error};
 use types::{ToSqlValue, SqlValue};
 use std::ptr;
 use row::Row;
-use libc::{c_void, size_t, c_int, c_uint, c_ushort};
+use libc::{c_void, size_t, c_int, c_uint, c_ushort, c_short, c_schar};
 use std::marker::PhantomData;
 
 /// Represents a connection to a database. Internally
@@ -603,21 +603,21 @@ impl Column {
            position: c_uint)
            -> Result<Column, OciError> {
         let parameter = allocate_parameter_handle(statement, error, position)?;
-        let data_type = column_data_type(parameter, error)?;
+        let data_type = determine_external_data_type(parameter, error)?;
         let data_size = column_data_size(parameter, error)?;
         let (define, buffer, buffer_ptr) =
             define_output_parameter(statement, error, position, data_size, &data_type)?;
         Ok(Column {
             handle: parameter,
             define: define,
-            sql_type: data_type.into(),
+            sql_type: data_type,
             buffer: buffer,
             buffer_ptr: buffer_ptr,
         })
     }
 
-    fn create_sql_value(&self, error: *mut OCIError) -> Result<SqlValue, OciError> {
-        Ok(SqlValue::create_from_raw(&self.buffer, &self.sql_type, error)?)
+    fn create_sql_value(&self) -> Result<SqlValue, OciError> {
+        Ok(SqlValue::create_from_raw(&self.buffer, &self.sql_type)?)
     }
 }
 
@@ -627,13 +627,12 @@ fn define_output_parameter(statement: *mut OCIStmt,
                            data_size: c_ushort,
                            data_type: &SqlDataType)
                            -> Result<(*mut OCIDefine, Vec<u8>, *mut c_void), OciError> {
-    let mut buffer = vec![0; data_size as usize];
+    let buffer_size = match *data_type {
+        SqlDataType::SqlChar => data_size,
+        _ => data_type.size(),
+    };
+    let mut buffer = vec![0; buffer_size as usize];
     let buffer_ptr = buffer.as_mut_ptr() as *mut c_void;
-    //let buffer_size = match *data_type {
-    //    SqlDataType::SqlChar => data_size,
-    //    _ => data_type.size(),
-    //};
-    let buffer_size = data_size;
     let define: *mut OCIDefine = ptr::null_mut();
     let null_mut_ptr = ptr::null_mut();
     let indp = null_mut_ptr;
@@ -655,9 +654,9 @@ fn define_output_parameter(statement: *mut OCIStmt,
     match define_result.into() {
         ReturnCode::Success => Ok((define, buffer, buffer_ptr)),
         _ => {
-            return Err(get_error(error as *mut c_void,
-                                 HandleType::Error,
-                                 "Defining output parameter"))
+            Err(get_error(error as *mut c_void,
+                          HandleType::Error,
+                          "Defining output parameter"))
         }
     }
 }
@@ -677,16 +676,44 @@ fn column_data_size(parameter: *mut OCIParam, error: *mut OCIError) -> Result<c_
     match size_result.into() {
         ReturnCode::Success => Ok(size),
         _ => {
-            return Err(get_error(error as *mut c_void,
-                                 HandleType::Error,
-                                 "Getting column data size"))
+            Err(get_error(error as *mut c_void,
+                          HandleType::Error,
+                          "Getting column data size"))
         }
     }
 }
 
-fn column_data_type(parameter: *mut OCIParam,
-                    error: *mut OCIError)
-                    -> Result<SqlDataType, OciError> {
+/// Oracle needs to be told what to convert the internal column data
+/// into. This is fine for char, but for numbers it is a bit tricky.
+/// Internally Oracle stores all numbers as Number, it then expects
+/// the caller to tell it what type to use on conversion e.g.
+/// please give me an int for that Number. Here we try to fix the
+/// conversion to either a integer or float. We can do this by checking the
+/// scale and precision of the number in the column. If it the precision is
+/// non-zero and scale is -127 then it is float.
+fn determine_external_data_type(parameter: *mut OCIParam,
+                                error: *mut OCIError)
+                                -> Result<SqlDataType, OciError> {
+
+    let internal_data_type = column_internal_data_type(parameter, error)?;
+    match internal_data_type { 
+        SqlDataType::SqlChar => Ok(SqlDataType::SqlChar),
+        SqlDataType::SqlNum => {
+            let precision = column_data_precision(parameter, error)?;
+            let scale = column_data_scale(parameter, error)?;
+            if (precision != 0) && (scale == -127) {
+                Ok(SqlDataType::SqlFloat)
+            } else {
+                Ok(SqlDataType::SqlInt)
+            }
+        }
+        _ => panic!("Uknown external conversion"),
+    }
+}
+
+fn column_internal_data_type(parameter: *mut OCIParam,
+                             error: *mut OCIError)
+                             -> Result<SqlDataType, OciError> {
     let mut data_type: c_ushort = 0;
     let data_type_ptr: *mut c_ushort = &mut data_type;
     let null_mut_ptr = ptr::null_mut();
@@ -701,9 +728,55 @@ fn column_data_type(parameter: *mut OCIParam,
     match size_result.into() {
         ReturnCode::Success => Ok(data_type.into()),
         _ => {
-            return Err(get_error(error as *mut c_void,
-                                 HandleType::Error,
-                                 "Getting column data type"))
+            Err(get_error(error as *mut c_void,
+                          HandleType::Error,
+                          "Getting column data type"))
+        }
+    }
+}
+
+fn column_data_precision(parameter: *mut OCIParam,
+                         error: *mut OCIError)
+                         -> Result<c_short, OciError> {
+    let mut precision: c_short = 0;
+    let precision_ptr: *mut c_short = &mut precision;
+    let null_mut_ptr = ptr::null_mut();
+    let precision_result = unsafe {
+        OCIAttrGet(parameter as *mut c_void,
+                   DescriptorType::Parameter.into(),
+                   precision_ptr as *mut c_void,
+                   null_mut_ptr,
+                   AttributeType::Precision.into(),
+                   error)
+    };
+    match precision_result.into() {
+        ReturnCode::Success => Ok(precision),
+        _ => {
+            Err(get_error(error as *mut c_void,
+                          HandleType::Error,
+                          "Getting column precision"))
+        }
+    }
+}
+
+fn column_data_scale(parameter: *mut OCIParam, error: *mut OCIError) -> Result<c_schar, OciError> {
+    let mut scale: c_schar = 0;
+    let scale_ptr: *mut c_schar = &mut scale;
+    let null_mut_ptr = ptr::null_mut();
+    let scale_result = unsafe {
+        OCIAttrGet(parameter as *mut c_void,
+                   DescriptorType::Parameter.into(),
+                   scale_ptr as *mut c_void,
+                   null_mut_ptr,
+                   AttributeType::Scale.into(),
+                   error)
+    };
+    match scale_result.into() {
+        ReturnCode::Success => Ok(scale),
+        _ => {
+            Err(get_error(error as *mut c_void,
+                          HandleType::Error,
+                          "Getting column scale"))
         }
     }
 }
@@ -723,9 +796,9 @@ fn allocate_parameter_handle(statement: *mut OCIStmt,
     match handle_result.into() {
         ReturnCode::Success => Ok(handle),
         _ => {
-            return Err(get_error(error as *mut c_void,
-                                 HandleType::Error,
-                                 "Allocating parameter handle"))
+            Err(get_error(error as *mut c_void,
+                          HandleType::Error,
+                          "Allocating parameter handle"))
         }
     }
 }
@@ -765,9 +838,9 @@ fn number_of_columns(statement: *mut OCIStmt, error: *mut OCIError) -> Result<c_
     match column_result.into() {
         ReturnCode::Success => Ok(nmb_cols),
         _ => {
-            return Err(get_error(error as *mut c_void,
-                                 HandleType::Error,
-                                 "Getting number of columns"))
+            Err(get_error(error as *mut c_void,
+                          HandleType::Error,
+                          "Getting number of columns"))
         }
     }
 }
@@ -795,7 +868,7 @@ fn build_result_row(statement: *mut OCIStmt,
 
     let mut sql_values = Vec::new();
     for col in columns {
-        sql_values.push(col.create_sql_value(error)?);
+        sql_values.push(col.create_sql_value()?);
     }
     Ok(Some(Row::new(sql_values)))
 }
@@ -836,6 +909,6 @@ fn fetch_next_row(statement: *mut OCIStmt, error: *mut OCIError) -> Result<Fetch
     match fetch_result.into() {
         ReturnCode::Success => Ok(FetchResult::Data),
         ReturnCode::NoData => Ok(FetchResult::NoData),
-        _ => return Err(get_error(error as *mut c_void, HandleType::Error, "Fetching")),
+        _ => Err(get_error(error as *mut c_void, HandleType::Error, "Fetching")),
     }
 }

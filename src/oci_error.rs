@@ -16,15 +16,15 @@ pub enum OciError {
     Conversion(FromUtf8Error),
     Nul(NulError),
 }
-impl OciError{
-    pub fn last_error_code(&self) -> Option<i32>{
+impl OciError {
+    pub fn last_error_code(&self) -> Option<i32> {
         match *self {
             OciError::Oracle(ref e) => {
-                match e.records.last(){
+                match e.records.last() {
                     Some(code) => Some(code.0),
                     None => None,
                 }
-            },
+            }
             _ => None,
         }
     }
@@ -96,7 +96,8 @@ impl fmt::Display for ErrorRecord {
 /// Fetches the error records registered against the handle provided. If it is called
 /// out of sequence then the errors returned might be caused by a different function.
 /// Often the caller will need to cast their handle to *mut `c_void` to make it work.
-pub(crate) fn get_error(handle: *mut c_void,
+pub(crate) fn get_error(// crate) fn get_error(
+                        handle: *mut c_void,
                         handle_type: HandleType,
                         description: &str)
                         -> OciError {
