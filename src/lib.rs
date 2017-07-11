@@ -4,6 +4,7 @@ pub mod connection;
 pub mod oci_error;
 pub mod types;
 pub mod row;
+pub mod statement;
 mod oci_bindings;
 
 #[cfg(test)]
@@ -101,7 +102,6 @@ mod tests {
 
     #[test]
     fn query() {
-
         let conn = match Connection::new(CONNECTION, USER, PASSWORD) {
             Ok(conn) => conn,
             Err(err) => panic!("Failed to create a connection: {}", err),

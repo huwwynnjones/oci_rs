@@ -1,10 +1,9 @@
+use std::error::Error;
 use std::error;
 use std::fmt;
-use std::ffi::NulError;
-use libc::{c_uint, c_uchar, c_int, c_void};
 use std::ptr;
+use libc::{c_uint, c_uchar, c_int, c_void};
 use oci_bindings::{OCIErrorGet, HandleType, ReturnCode};
-use std::string::FromUtf8Error;
 
 const MAX_ERROR_MESSAGE_SIZE: usize = 3024;
 
@@ -13,21 +12,7 @@ const MAX_ERROR_MESSAGE_SIZE: usize = 3024;
 #[derive(Debug)]
 pub enum OciError {
     Oracle(ErrorRecord),
-    Conversion(FromUtf8Error),
-    Nul(NulError),
-}
-impl OciError {
-    pub fn last_error_code(&self) -> Option<i32> {
-        match *self {
-            OciError::Oracle(ref e) => {
-                match e.records.last() {
-                    Some(code) => Some(code.0),
-                    None => None,
-                }
-            }
-            _ => None,
-        }
-    }
+    Conversion(Box<Error>),
 }
 
 impl fmt::Display for OciError {
@@ -35,7 +20,6 @@ impl fmt::Display for OciError {
         match *self {
             OciError::Oracle(ref err) => write!(f, "{}", err),
             OciError::Conversion(ref err) => write!(f, "{}", err),
-            OciError::Nul(ref err) => write!(f, "Nul error: {}", err),
         }
     }
 }
@@ -45,7 +29,13 @@ impl error::Error for OciError {
         match *self {
             OciError::Oracle(_) => "Oracle error",
             OciError::Conversion(_) => "Cannot convert from OCI to Rust type",
-            OciError::Nul(ref err) => err.description(),
+        }
+    }
+
+    fn cause(&self) -> Option<&Error> {
+        match *self {
+            OciError::Oracle(_) => None,
+            OciError::Conversion(ref err) => Some(err.as_ref()),
         }
     }
 }
@@ -96,7 +86,7 @@ impl fmt::Display for ErrorRecord {
 /// Fetches the error records registered against the handle provided. If it is called
 /// out of sequence then the errors returned might be caused by a different function.
 /// Often the caller will need to cast their handle to *mut `c_void` to make it work.
-pub(crate) fn get_error(// crate) fn get_error(
+pub(crate) fn get_error(
                         handle: *mut c_void,
                         handle_type: HandleType,
                         description: &str)

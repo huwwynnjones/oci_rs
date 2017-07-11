@@ -213,51 +213,51 @@ const SQLT_INT: c_ushort = 3;
 const SQLT_FLT: c_ushort = 4;
 
 #[derive(Debug)]
-pub enum SqlDataType {
+pub enum OciDataType {
     SqlChar,
     SqlInt,
     SqlNum,
     SqlFloat,
 }
-impl SqlDataType {
+impl OciDataType {
     pub fn size(&self) -> c_ushort {
         match *self {
-            SqlDataType::SqlChar => 4000,
-            SqlDataType::SqlInt | SqlDataType::SqlNum | SqlDataType::SqlFloat => 8,
+            OciDataType::SqlChar => 4000,
+            OciDataType::SqlInt | OciDataType::SqlNum | OciDataType::SqlFloat => 8,
         }
     }
 }
 
-impl From<SqlDataType> for c_ushort {
-    fn from(sql_type: SqlDataType) -> Self {
+impl From<OciDataType> for c_ushort {
+    fn from(sql_type: OciDataType) -> Self {
         match sql_type {
-            SqlDataType::SqlChar => SQLT_CHR,
-            SqlDataType::SqlInt => SQLT_INT,
-            SqlDataType::SqlNum => SQLT_NUM,
-            SqlDataType::SqlFloat => SQLT_FLT,
+            OciDataType::SqlChar => SQLT_CHR,
+            OciDataType::SqlInt => SQLT_INT,
+            OciDataType::SqlNum => SQLT_NUM,
+            OciDataType::SqlFloat => SQLT_FLT,
         }
     }
 }
 
-impl<'a> From<&'a SqlDataType> for c_ushort {
-    fn from(sql_type: &SqlDataType) -> Self {
+impl<'a> From<&'a OciDataType> for c_ushort {
+    fn from(sql_type: &OciDataType) -> Self {
         match *sql_type {
-            SqlDataType::SqlChar => SQLT_CHR,
-            SqlDataType::SqlInt => SQLT_INT,
-            SqlDataType::SqlNum => SQLT_NUM,
-            SqlDataType::SqlFloat => SQLT_FLT,
+            OciDataType::SqlChar => SQLT_CHR,
+            OciDataType::SqlInt => SQLT_INT,
+            OciDataType::SqlNum => SQLT_NUM,
+            OciDataType::SqlFloat => SQLT_FLT,
         }
     }
 }
-impl From<c_ushort> for SqlDataType {
+impl From<c_ushort> for OciDataType {
     fn from(number: c_ushort) -> Self {
         match number {
-            SQLT_CHR => SqlDataType::SqlChar,
-            SQLT_INT => SqlDataType::SqlInt,
-            SQLT_NUM => SqlDataType::SqlNum,
-            SQLT_FLT => SqlDataType::SqlFloat,
+            SQLT_CHR => OciDataType::SqlChar,
+            SQLT_INT => OciDataType::SqlInt,
+            SQLT_NUM => OciDataType::SqlNum,
+            SQLT_FLT => OciDataType::SqlFloat,
             _ => {
-                panic!(format!("Found an unknown SqlDataType code, {}, this should not happen",
+                panic!(format!("Found an unknown OciDataType code, {}, this should not happen",
                                number))
             }
         }

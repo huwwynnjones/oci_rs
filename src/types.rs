@@ -1,9 +1,9 @@
 use libc::{c_void, c_int, c_ushort};
-use oci_bindings::{SqlDataType};
+use oci_bindings::{OciDataType};
 use oci_error::{OciError};
 use byteorder::{ByteOrder, LittleEndian};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum SqlValue {
     SqlString(String),
     SqlInteger(i64),
@@ -32,28 +32,28 @@ impl SqlValue {
 
     pub fn oci_data_type(&self) -> c_ushort {
         match *self {
-            SqlValue::SqlString(..) => SqlDataType::SqlChar.into(),
-            SqlValue::SqlInteger(..) => SqlDataType::SqlInt.into(),
-            SqlValue::SqlFloat(..) => SqlDataType::SqlFloat.into(),
+            SqlValue::SqlString(..) => OciDataType::SqlChar.into(),
+            SqlValue::SqlInteger(..) => OciDataType::SqlInt.into(),
+            SqlValue::SqlFloat(..) => OciDataType::SqlFloat.into(),
         }
     }
 
     pub fn create_from_raw(data: &[u8],
-                           sql_type: &SqlDataType)
+                           sql_type: &OciDataType)
                            -> Result<Self, OciError> {
         match *sql_type {
-            SqlDataType::SqlChar => {
+            OciDataType::SqlChar => {
                 match String::from_utf8(Vec::from(data)) {
                     Ok(s) => Ok(SqlValue::SqlString(s.trim().to_string())),
-                    Err(err) => Err(OciError::Conversion(err)),
+                    Err(err) => Err(OciError::Conversion(Box::new(err))),
                 }
             }
-            SqlDataType::SqlInt => {
+            OciDataType::SqlInt => {
                 println!("data: {:?}, len {}", data, data.len());
                 let i = LittleEndian::read_i64(data);
                 Ok(SqlValue::SqlInteger(i as i64))
             }
-            SqlDataType::SqlFloat => {
+            OciDataType::SqlFloat => {
                 println!("data: {:?}, len {}", data, data.len());
                 let f = LittleEndian::read_f64(data);
                 Ok(SqlValue::SqlFloat(f as f64))
