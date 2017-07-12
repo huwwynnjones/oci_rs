@@ -74,6 +74,13 @@ impl ToSqlValue for String {
     }
 }
 
+impl<'a> ToSqlValue for &'a str {
+    fn to_sql_value(&self) -> SqlValue {
+        let s = String::from(*self);
+        SqlValue::SqlString(s)
+    }
+}
+
 impl ToSqlValue for i64 {
     fn to_sql_value(&self) -> SqlValue {
         SqlValue::SqlInteger(*self)

@@ -3,7 +3,7 @@ use types::SqlValue;
 
 #[derive(Debug)]
 pub struct Row {
-    pub columns: Vec<SqlValue>,
+    columns: Vec<SqlValue>,
 }
 impl Row {
     pub fn new(columns: Vec<SqlValue>) -> Row {
