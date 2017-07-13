@@ -7,8 +7,8 @@
 //! 
 //! The OCI library is the original Oracle C API for interacting with their database. It is the one
 //! that later versions of JDBC is built on for example. Recently Oracle has released a new API 
-//! called the [Oracle Database Programming Interface for Drivers and Applications](https://githu
-//! b.com/oracle/odpi) (ODPI-C) that is supposed to simplify use of OCI, but documentation for OCI 
+//! called the [Oracle Database Programming Interface for Drivers and Applications][2] (ODPI-C) 
+//! that is supposed to simplify use of OCI, however the documentation for OCI 
 //! is more extensive and therefore easier to build a wrapper on top of.
 //! 
 //! The OCI library is large and supports many use cases for interacting with a database. This
@@ -16,14 +16,13 @@
 //! compared to the whole of OCI.
 //! 
 //! The overall design will be familiar to anyone who has used Java's JDBC, Haskell's HDBC or
-//! Rust's [postgres](https://crates.io/crates/postgres) crate. Indeed, most design decisions were
+//! Rust's [postgres][3] crate. Indeed, most design decisions were
 //! made based on reviewing the API of these libraries. 
 //! 
-//! The basics are simple: a [`Connection`](connection/struct.Connection.html) represents a 
-//! connection to a database, this connection can be used to prepare one or more [`Statement`]
-//! (statement/struct.Statement.html)s which are then used to execute SQL against the database. If 
-//! there are results then they can be returned all at once or lazily via an iterator. Datatypes are 
-//! represented using [`SqlValue`](types/enum.SqlValue.html) and allow type conversion from Oracle 
+//! The basics are simple: a [`Connection`][4] represents a connection to a database, this connection 
+//! can be used to prepare one or more [`Statement`][5]s which are then used to execute SQL against the 
+//! database. If there are results then they can be returned all at once or lazily via an iterator. 
+//! Datatypes are represented using [`SqlValue`][6] and allow type conversion from Oracle 
 //! to Rust types.
 //! 
 //! ## Missing type conversions
@@ -37,25 +36,23 @@
 //! 
 //! This crate is developed against version 12.2 of the OCI library. It is expected to work with 
 //! 12.x.x but is not tested. The OCI client library needs to be installed on your machine and can be
-//! downloaded [here](http://www.oracle.com/technetwork/database/features/instant-client/
-//! index-097480.html). If you are on Linux then you are likely to need to tell the linker where
+//! downloaded [here][7]. If you are on Linux then you are likely to need to tell the linker where
 //! to find the files.
 //! 
 //! Adding this to my `.bashrc` file worked for me. The details will vary according to your distro,
-//! mine is [OpenSuse](https://www.opensuse.org/).
+//! mine is [OpenSuse][8].
 //! 
-//! ```ignore
+//! ```text
 //! export LIBRARY_PATH=$LIBRARY_PATH:/usr/lib/oracle/12.2/client64/lib/
 //! ```
 //! 
 //! This crate has not been tested against Windows and so the setup will be different.
 //! 
-//! Testing has been done against a local installation of [Oracle 11g Express Edition](http://www.
-//! oracle.com/technetwork/database/database-technologies/express-edition/overview/index.html). 
+//! Testing has been done against a local installation of [Oracle 11g Express Edition][9]. 
 //! In order to run the crate tests then a local database needs to be
 //! available on `localhost:1521/xe` with a user `oci_rs` and password `test`.
 //! 
-//! Add this to your `Cargo.toml`:
+//! In order to use oci_rs add this to your `Cargo.toml`:
 //! 
 //! ```toml
 //! [dependencies]
@@ -63,7 +60,7 @@
 //! ```
 //! and this to your crate root:
 //! 
-//! ```ignore
+//! ```rust
 //! extern crate oci_rs;
 //! ```
 //! 
@@ -73,8 +70,8 @@
 //! insert a couple of rows using bind variables and then execute a query to fetch them back again.
 //! There is a lot of error handling needed. Every OCI function call can fail and so `Result` and
 //! `Option` are used extensively. The below code takes the usual documentation shortcut of calling
-//! `unwrap()` a lot but doing so in real client code will prove ill-fated. A database connection is
-//! inherently unreliable as they mostly run on another machine.
+//! `unwrap()` a lot but doing so in real client code will prove ill-fated. Any remote database connection is
+//! inherently unreliable.
 //! 
 //! ```rust
 //! use oci_rs::connection::Connection;
@@ -93,6 +90,10 @@
 //! // Execute the create statement
 //! create.execute().unwrap();
 //! 
+//! // Commit in case we lose connection (an abnormal disconnection would result 
+//! // in an automatic roll-back.)
+//! create.commit().unwrap();
+//! 
 //! // Insert some values using bind variables
 //! let sql_insert = "INSERT INTO Toys (ToyId, Name, Price) 
 //!                   VALUES (:id, :name, :price)";
@@ -101,11 +102,13 @@
 //! let values = [(1, "Barbie", 23.45), 
 //!               (2, "Dinosaurs", -5.21)];
 //! 
-//! // Run through the list of values, bind them and executing the insert statement
+//! // Run through the list of values, bind them and execute the statement
 //! for value in values.iter() {
 //!     insert.bind(&[&value.0, &value.1, &value.2]).unwrap();
 //!     insert.execute().unwrap()
 //! }
+//! 
+//! insert.commit().unwrap();
 //! 
 //! // Create a query
 //! let sql_select = "SELECT * FROM Toys
@@ -118,6 +121,7 @@
 //! 
 //! // Get the result set 
 //! let result_set = select.result_set().unwrap();
+//! assert_eq!(result_set.len(), 1);
 //! let first_row = &result_set[0];
 //! 
 //! // Types are automatically converted
@@ -132,15 +136,27 @@
 //! ```
 //! # OCI docs
 //! 
-//! Documentation for the underlying OCI library can be found [here](http://docs.oracle.com/
-//! database/122/LNOCI/toc.htm) and error codes and there descriptions [here](https://docs.oracle.com/
-//! database/122/ERRMG/toc.htm). The error descriptions are useful because they often contain
+//! Documentation for the underlying OCI library can be found [here][10] and error codes and their 
+//! descriptions [here][11]. The error descriptions are useful because they often contain
 //! additional information that is not included in the text returned from the library.
 //! 
-//! [1]:  http://www.oracle.com/technetwork/database/features/oci/index-090945.html
+//! [1]: http://www.oracle.com/technetwork/database/features/oci/index-090945.html
+//! [2]: https://github.com/oracle/odpi
+//! [3]: https://crates.io/crates/postgres
+//! [4]: connection/struct.Connection.html
+//! [5]: statement/struct.Statement.html
+//! [6]: types/enum.SqlValue.html
+//! [7]: http://www.oracle.com/technetwork/database/features/instant-client/index-097480.html
+//! [8]: https://www.opensuse.org/
+//! [9]: http://www.oracle.com/technetwork/database/database-technologies/express-edition/overview/index.html
+//! [10]: http://docs.oracle.com/database/122/LNOCI/toc.html
+//! [11]: https://docs.oracle.com/database/122/ERRMG/toc.html
+//! 
+
 extern crate libc;
 extern crate byteorder;
-/// Manages connections to a database.
+
+/// Connections to a database.
 /// 
 /// The current implementation only supports a simple connection to the database. There is
 /// one user session, but multiple statements can be created. Multiple connections can be created
@@ -149,10 +165,151 @@ extern crate byteorder;
 /// threaded client application might run slower.
 /// 
 /// More advanced connection options such as connection and statement pooling are not yet
-/// available.
+/// available. 
 /// 
 pub mod connection;
+
+/// Errors.
+/// 
+/// Any errors arising from interaction with the OCI library will be returned as an `OciError`. All 
+/// Oracle errors will be returned as the `OciError::Oracle` type. The Oracle error
+/// code and description can be seen through this.
+/// 
+/// # Examples
+/// 
+/// Here is an example of how an Oracle error will reach you if you choose to display it:
+/// 
+/// ```rust,should_panic
+/// use oci_rs::connection::Connection;
+/// 
+/// let conn = Connection::new("localhost:1521/xe", "oci_rs", "test").unwrap();
+/// 
+/// // Create a table
+/// let sql_create = "CREATE TABLE BrokenToys (ToyId int,
+///                                            Name varchar(20),
+///                                            Price sink)";
+/// let create = conn.create_prepared_statement(sql_create).unwrap();
+/// if let Err(err) = create.execute() {
+///     panic!("Execution failed: {}", err)
+/// }
+/// ```
+/// 
+/// The above code will produce the following (this specific output comes from
+/// running this documentation test without the `should_panic` attribute):
+/// 
+/// ```text
+/// thread 'main' panicked at 'Execution failed: Executing statement
+/// Error number: 1
+/// Error code: ORA-902
+/// Error text: ORA-00902: invalid datatype
+/// ', <anon>:13
+/// note: Run with `RUST_BACKTRACE=1` for a backtrace.
+/// ```
+/// In this case "sink" is not a valid SQL data type.
+/// 
+/// Note that there might be more than one error and in such cases all errors will be listed, this
+/// is why there is an error number.
+/// 
 pub mod oci_error;
+
+/// Types used in conversion between OCI and Rust types.
+/// 
+/// This module provides a type `SqlValue` and two traits `ToSqlValue` and `FromSqlValue` that
+/// allow the underlying OCI types to be converted into Rust types. They do not map exactly to the 
+/// corresponding SQL standard types.
+/// 
+/// For number types in particular there are less `SqlValue`s than SQL types. Inside Oracle all
+/// numbers are stored as a `NUMBER`. This is an Oracle format that can handle all integer and
+/// float values with a precision of 38 digits. Regardless of whether the SQL statement specifies
+/// an `INT` or `FLOAT` or `LONG`, Oracle will store it as a `NUMBER`. The OCI library allows you
+/// to convert it into any numeric type you like, but that forces you to explicitly state the type
+/// of the columns when retrieving the values. To avoid this, this wrapper makes some executive
+/// decisions based on the `NUMBER` value. As per the OCI documentation the basic type of a number can be
+/// determined by the scale and precision of the `NUMBER` value. If the precision is non-zero and
+/// scale is -127 then the number is a `FLOAT` otherwise we consider it an `INTEGER`. So, according to this 
+/// logic the caller will receive either `SqlValue::Integer` or `SqlValue::Float`. These two variants
+/// contain an `i64` and `f64` respectively. If a smaller type is needed in Rust code, then further
+/// conversions can be made. This appears to be sufficient to allow retrieval of data in queries,
+/// without having specify column types on the Rust side ahead of time.
+/// 
+/// Note: Oracle also supports types known as `BINARY_FLOAT` and `BINARY_DOUBLE`. These can also be
+/// used to store numbers inside the database as an alternative to `NUMBER`. They are not currently
+/// supported.
+/// 
+/// The traits allow conversion to and from Rust types into `SqlValue`.
+/// 
+/// # Examples
+/// 
+/// This example highlights the automatic conversion. If it is confusing then I suggest reading 
+/// [Communicating Intent][1] as it explains very well how Rust's trait system makes this work, 
+/// the [`postgres`][2] crate also makes use of the same process to
+/// convert the column values in a result into Rust. This crate copies `postgres`'s approach except that it
+/// makes use of an intermediatary `SqlValue` instead of returning a trait. I think that it is fair
+/// to argue that `SqlValue` is not needed but has been used as an alternative to `Box`ing traits in various
+/// places.
+/// 
+/// ```rust
+/// use oci_rs::connection::Connection;
+/// 
+/// let conn = Connection::new("localhost:1521/xe", "oci_rs", "test").unwrap();
+/// 
+/// # let drop = conn.create_prepared_statement("DROP TABLE Men").unwrap();
+/// # drop.execute().ok();
+/// 
+/// // Create a table
+/// let sql_create = "CREATE TABLE Men (ManId INTEGER,
+///                                     Name VARCHAR2(20),
+///                                     Height FLOAT)";
+///                                     
+/// let create = conn.create_prepared_statement(sql_create).unwrap();
+/// 
+/// // Execute the create statement
+/// create.execute().unwrap();
+/// 
+/// // Commit in case we lose connection (an abnormal disconnection would result 
+/// // in an automatic roll-back.)
+/// create.commit().unwrap();
+/// 
+/// // Insert some values using bind variables
+/// let sql_insert = "INSERT INTO Men (ManId, Name, Height) 
+///                   VALUES (1, 'Roger', 183.4)";
+/// let insert = conn.create_prepared_statement(sql_insert).unwrap();
+/// 
+/// insert.execute().unwrap();
+/// insert.commit().unwrap();
+/// 
+/// // Create a query
+/// let sql_select = "SELECT * FROM Men";
+/// 
+/// let mut select = conn.create_prepared_statement(sql_select).unwrap();
+/// 
+/// // Execute
+/// select.execute().unwrap();
+/// 
+/// // Get the result set 
+/// let result_set = select.result_set().unwrap();
+/// assert_eq!(result_set.len(), 1);
+/// let first_row = &result_set[0];
+/// 
+/// // Types are automatically converted
+/// let id: i64 = first_row[0].value().unwrap();
+/// let name: String = first_row[1].value().unwrap();
+/// let height: f64 = first_row[2].value().unwrap();
+/// 
+/// assert_eq!(id, 1);
+/// assert_eq!(name, "Roger");
+/// assert_eq!(height, 183.4);
+/// 
+/// // Integer and Float can also be turned into Strings
+/// let id_as_string: String = first_row[0].value().unwrap();
+/// let height_as_string: String = first_row[2].value().unwrap();
+/// 
+/// assert_eq!(id_as_string, "1");
+/// assert_eq!(height_as_string, "183.4");
+/// ```
+/// 
+/// [1]: https://github.com/jaheba/stuff/blob/master/communicating_intent.md 
+/// [2]: https://crates.io/crates/postgres
 pub mod types;
 pub mod row;
 pub mod statement;

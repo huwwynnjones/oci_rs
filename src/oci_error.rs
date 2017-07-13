@@ -7,11 +7,15 @@ use oci_bindings::{OCIErrorGet, HandleType, ReturnCode};
 
 const MAX_ERROR_MESSAGE_SIZE: usize = 3024;
 
-/// The various errors that might result when interacting
-/// with the OCI library
+/// The various errors that might result when interacting with the OCI library.
+/// 
 #[derive(Debug)]
 pub enum OciError {
+    /// Contains the Oracle error details.
+    /// Everything that comes back from the database will be retuned in this variant.
     Oracle(ErrorRecord),
+    /// Picks up any errors that might come during conversion, such as a `Utf8Error`.
+    /// It will not represent any Oracle errors.
     Conversion(Box<Error>),
 }
 
@@ -73,7 +77,7 @@ impl fmt::Display for ErrorRecord {
         let mut text = String::new();
         text.push_str(&self.description);
         for (index, error) in self.records.iter().enumerate() {
-            text.push_str(format!("\nError number: {}\nError code: ORA-{}\nError text {}",
+            text.push_str(format!("\nError number: {}\nError code: ORA-{}\nError text: {}",
                                   index + 1,
                                   error.0,
                                   &error.1)
