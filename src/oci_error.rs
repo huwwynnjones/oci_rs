@@ -8,7 +8,7 @@ use oci_bindings::{OCIErrorGet, HandleType, ReturnCode};
 const MAX_ERROR_MESSAGE_SIZE: usize = 3024;
 
 /// The various errors that might result when interacting with the OCI library.
-/// 
+///
 #[derive(Debug)]
 pub enum OciError {
     /// Contains the Oracle error details.
@@ -90,8 +90,7 @@ impl fmt::Display for ErrorRecord {
 /// Fetches the error records registered against the handle provided. If it is called
 /// out of sequence then the errors returned might be caused by a different function.
 /// Often the caller will need to cast their handle to *mut `c_void` to make it work.
-pub(crate) fn get_error(
-                        handle: *mut c_void,
+pub(crate) fn get_error(handle: *mut c_void,
                         handle_type: HandleType,
                         description: &str)
                         -> OciError {

@@ -1,15 +1,20 @@
-use oci_bindings::{HandleType, ReturnCode, EnvironmentMode, OCIError, AttributeType,
-                   OCIStmt, OCIStmtPrepare2, SyntaxType, OCIStmtRelease,
-                   OCIStmtExecute, OCISnapshot, OCITransCommit, OCIBind, OCIBindByPos,
-                   StatementType, OCIAttrGet, OCIParam, OCIParamGet, OCIDefine, OCIDefineByPos,
-                   DescriptorType, OciDataType, FetchType, OCIStmtFetch2, OCIDescriptorFree};
+use oci_bindings::{HandleType, ReturnCode, EnvironmentMode, OCIError, AttributeType, OCIStmt,
+                   OCIStmtPrepare2, SyntaxType, OCIStmtRelease, OCIStmtExecute, OCISnapshot,
+                   OCITransCommit, OCIBind, OCIBindByPos, StatementType, OCIAttrGet, OCIParam,
+                   OCIParamGet, OCIDefine, OCIDefineByPos, DescriptorType, OciDataType, FetchType,
+                   OCIStmtFetch2, OCIDescriptorFree};
 use oci_error::{OciError, get_error};
 use types::{ToSqlValue, SqlValue};
 use std::ptr;
 use connection::Connection;
 use row::Row;
 use libc::{c_void, c_int, c_uint, c_ushort, c_short, c_schar};
-use std::marker::PhantomData;
+
+#[derive(Debug)]
+enum ResultState {
+    Fetched,
+    NotFetched,
+}
 
 #[derive(Debug)]
 pub struct Statement<'conn> {
@@ -18,9 +23,11 @@ pub struct Statement<'conn> {
     bindings: Vec<*mut OCIBind>,
     values: Vec<SqlValue>,
     result_set: Vec<Row>,
+    result_state: ResultState,
 }
 impl<'conn> Statement<'conn> {
-    pub(crate) fn new(connection: &'conn Connection,
+    pub(crate) fn new(// crate) fn new(// crate) fn new(// crate) fn new(// crate) fn new(// crate) fn new(// crate) fn new(
+                      connection: &'conn Connection,
                       sql: &str)
                       -> Result<Self, OciError> {
         let statement = prepare_statement(connection, sql)?;
@@ -30,6 +37,7 @@ impl<'conn> Statement<'conn> {
             bindings: Vec::new(),
             values: Vec::new(),
             result_set: Vec::new(),
+            result_state: ResultState::NotFetched,
         })
     }
 
@@ -56,7 +64,7 @@ impl<'conn> Statement<'conn> {
                              position,
                              self.values[index].as_oci_ptr(),
                              self.values[index].size(),
-                             self.values[index].oci_data_type(),
+                             self.values[index].as_oci_data_type().into(),
                              indp,
                              alenp,
                              rcodep,
@@ -76,7 +84,7 @@ impl<'conn> Statement<'conn> {
         Ok(())
     }
 
-    pub fn execute(&self) -> Result<(), OciError> {
+    pub fn execute(&mut self) -> Result<(), OciError> {
 
         let stmt_type = get_statement_type(self.statement, self.connection.error())?;
         let iters = match stmt_type {
@@ -97,7 +105,10 @@ impl<'conn> Statement<'conn> {
                            EnvironmentMode::Default.into())
         };
         match execute_result.into() {
-            ReturnCode::Success => Ok(()),
+            ReturnCode::Success => {
+                self.results_not_fetched();
+                Ok(())
+            }
             _ => {
                 Err(get_error(self.connection.error_as_void(),
                               HandleType::Error,
@@ -107,15 +118,20 @@ impl<'conn> Statement<'conn> {
     }
 
     pub fn result_set(&mut self) -> Result<&Vec<Row>, OciError> {
-        self.result_set = build_result_set(self.statement, self.connection.error())?;
+        match self.result_state {
+            ResultState::Fetched => (),
+            ResultState::NotFetched => {
+                self.result_set = build_result_set(self.statement, self.connection.error())?;
+                self.results_fetched();
+            }
+        }
         Ok(&self.result_set)
     }
 
-    pub fn lazy_result_set(&self) -> RowIter {
+    pub fn lazy_result_set(&mut self) -> RowIter {
+        self.results_fetched();
         RowIter {
-            statement: self.statement,
-            error: self.connection.error(),
-            phantom: PhantomData,
+            statement: self,
         }
     }
 
@@ -133,6 +149,14 @@ impl<'conn> Statement<'conn> {
                               "Commiting statement"))
             }
         }
+    }
+
+    fn results_fetched(&mut self) -> () {
+        self.result_state = ResultState::Fetched
+    }
+
+    fn results_not_fetched(&mut self) -> () {
+        self.result_state = ResultState::NotFetched
     }
 }
 
@@ -153,15 +177,13 @@ impl<'conn> Drop for Statement<'conn> {
 
 #[derive(Debug)]
 pub struct RowIter<'stmt> {
-    statement: *mut OCIStmt,
-    error: *mut OCIError,
-    phantom: PhantomData<&'stmt OCIStmt>,
+    statement: &'stmt Statement<'stmt>
 }
 impl<'stmt> Iterator for RowIter<'stmt> {
     type Item = Result<Row, OciError>;
 
     fn next(&mut self) -> Option<Result<Row, OciError>> {
-        match build_result_row(self.statement, self.error) {
+        match build_result_row(self.statement.statement, self.statement.connection.error()) {
             Ok(option) => {
                 match option {
                     Some(row) => Some(Ok(row)),
@@ -259,6 +281,8 @@ struct Column {
     sql_type: OciDataType,
     buffer: Vec<u8>,
     buffer_ptr: *mut c_void,
+    null_ind: Box<c_short>,
+    null_ind_ptr: *mut c_short,
 }
 impl Column {
     fn new(statement: *mut OCIStmt,
@@ -268,7 +292,7 @@ impl Column {
         let parameter = allocate_parameter_handle(statement, error, position)?;
         let data_type = determine_external_data_type(parameter, error)?;
         let data_size = column_data_size(parameter, error)?;
-        let (define, buffer, buffer_ptr) =
+        let (define, buffer, buffer_ptr, null_ind, null_ind_ptr) =
             define_output_parameter(statement, error, position, data_size, &data_type)?;
         Ok(Column {
             handle: parameter,
@@ -276,20 +300,31 @@ impl Column {
             sql_type: data_type,
             buffer: buffer,
             buffer_ptr: buffer_ptr,
+            null_ind: null_ind,
+            null_ind_ptr: null_ind_ptr,
         })
     }
 
     fn create_sql_value(&self) -> Result<SqlValue, OciError> {
-        Ok(SqlValue::create_from_raw(&self.buffer, &self.sql_type)?)
+        if self.is_null() {
+            Ok(SqlValue::Null)
+        } else {
+            Ok(SqlValue::create_from_raw(&self.buffer, &self.sql_type)?)
+        }
+    }
+
+    fn is_null(&self) -> bool {
+        *self.null_ind == -1
     }
 }
 
-fn define_output_parameter(statement: *mut OCIStmt,
-                           error: *mut OCIError,
-                           position: c_uint,
-                           data_size: c_ushort,
-                           data_type: &OciDataType)
-                           -> Result<(*mut OCIDefine, Vec<u8>, *mut c_void), OciError> {
+fn define_output_parameter
+    (statement: *mut OCIStmt,
+     error: *mut OCIError,
+     position: c_uint,
+     data_size: c_ushort,
+     data_type: &OciDataType)
+     -> Result<(*mut OCIDefine, Vec<u8>, *mut c_void, Box<c_short>, *mut c_short), OciError> {
     let buffer_size = match *data_type {
         OciDataType::SqlChar => data_size,
         _ => data_type.size(),
@@ -298,7 +333,8 @@ fn define_output_parameter(statement: *mut OCIStmt,
     let buffer_ptr = buffer.as_mut_ptr() as *mut c_void;
     let define: *mut OCIDefine = ptr::null_mut();
     let null_mut_ptr = ptr::null_mut();
-    let indp = null_mut_ptr;
+    let mut indp: Box<c_short> = Box::new(0);
+    let indp_ptr: *mut c_short = &mut *indp;
     let rlenp = null_mut_ptr as *mut c_ushort;
     let rcodep = null_mut_ptr as *mut c_ushort;
     let define_result = unsafe {
@@ -309,13 +345,13 @@ fn define_output_parameter(statement: *mut OCIStmt,
                        buffer_ptr,
                        buffer_size as c_int,
                        data_type.into(),
-                       indp,
+                       indp_ptr as *mut c_void,
                        rlenp,
                        rcodep,
                        EnvironmentMode::Default.into())
     };
     match define_result.into() {
-        ReturnCode::Success => Ok((define, buffer, buffer_ptr)),
+        ReturnCode::Success => Ok((define, buffer, buffer_ptr, indp, indp_ptr)),
         _ => {
             Err(get_error(error as *mut c_void,
                           HandleType::Error,
@@ -359,7 +395,7 @@ fn determine_external_data_type(parameter: *mut OCIParam,
                                 -> Result<OciDataType, OciError> {
 
     let internal_data_type = column_internal_data_type(parameter, error)?;
-    match internal_data_type { 
+    match internal_data_type {
         OciDataType::SqlChar => Ok(OciDataType::SqlChar),
         OciDataType::SqlNum => {
             let precision = column_data_precision(parameter, error)?;

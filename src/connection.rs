@@ -8,11 +8,11 @@ use statement::Statement;
 use libc::{c_void, size_t, c_int, c_uint};
 
 /// Represents a connection to a database.
-/// 
+///
 /// Internally it holds the various handles that are needed to maintain
 /// a connection to the database. Once it goes out of scope it will free these handles using
 /// the relevant OCI calls via a Drop implementation.
-/// 
+///
 #[derive(Debug)]
 pub struct Connection {
     environment: *mut OCIEnv,
@@ -26,7 +26,7 @@ impl Connection {
     ///
     /// # Errors
     ///
-    /// Any errors encounter when trying to allocate handles in OCI library will bubble up here. 
+    /// Any errors encounter when trying to allocate handles in OCI library will bubble up here.
     /// The [`OciError`][1] will return the relevant Oracle error codes and text when available.
     ///
     /// # Examples
@@ -41,7 +41,7 @@ impl Connection {
     /// ```
     ///
     /// [1]: ../oci_error/enum.OciError.html
-    /// 
+    ///
     pub fn new(connection_str: &str,
                user_name: &str,
                password: &str)
@@ -67,36 +67,37 @@ impl Connection {
     }
 
     /// Creates a new [`Statement`][2].
-    /// 
-    /// A `Statement` can only live as long as the `Connection` that created it. The SQL statement that 
-    /// needs to be executed is supplied. A connection can have multiple statements active.
-    /// 
+    ///
+    /// A `Statement` can only live as long as the `Connection` that created it. The SQL
+    /// statement that needs to be executed is supplied. A connection can have multiple
+    /// statements active.
+    ///
     /// # Errors
-    /// 
+    ///
     /// Any OCI failures will be reported and the relevant Oracle error codes available.
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```rust,no_run
     /// use oci_rs::connection::Connection;
-    /// 
+    ///
     /// let connection = Connection::new("localhost:1521/xe",
     ///                                  "user",
     ///                                  "password")
     ///                                  .unwrap();
-    /// 
+    ///
     /// let sql_select = "SELECT * FROM SomeTable";
     /// let select_stmt = match connection.create_prepared_statement(sql_select) {
     ///     Ok(stmt) => stmt,
     ///     Err(err) => panic!("Oracle error: {}", err),
     /// };
     /// ```
-    /// 
-    /// [2]: ../statement/struct.Statement.html 
+    ///
+    /// [2]: ../statement/struct.Statement.html
     pub fn create_prepared_statement(&self, sql: &str) -> Result<Statement, OciError> {
         Statement::new(self, sql)
     }
-    
+
     /// Returns the error handle for the connection.
     pub(crate) fn error(&self) -> *mut OCIError {
         self.error
@@ -107,7 +108,7 @@ impl Connection {
     pub(crate) fn error_as_void(&self) -> *mut c_void {
         self.error as *mut c_void
     }
-    
+
     /// Returns the service handle for the connection.
     pub(crate) fn service(&self) -> *mut OCISvcCtx {
         self.service
@@ -115,16 +116,16 @@ impl Connection {
 }
 
 impl Drop for Connection {
-    /// Ends the current user session, disconnects from the database and frees the handles 
+    /// Ends the current user session, disconnects from the database and frees the handles
     /// allocated by the OCI library.
-    /// 
+    ///
     /// This should ensure there are no remaining processes or memory allocated.
     ///
     /// # Panics
     ///
     /// Panics if the resources can't be freed. This would be
     /// a failure of the underlying OCI resource freeing function.
-    /// 
+    ///
     fn drop(&mut self) {
         let session_end_result = unsafe {
             OCISessionEnd(self.service,
