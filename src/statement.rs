@@ -16,6 +16,23 @@ enum ResultState {
     NotFetched,
 }
 
+/// Represents a statement that is executed against a database.
+/// 
+/// A `Statement` cannot be created directly, instead it is brough to life through
+/// the `.create_prepared_statement` method of a [`Connection`][1]. It can only live as 
+/// long as its parent `Connection` and when it goes out of scope the underlying resources
+/// will be released via a `Drop` implementation.
+/// 
+/// A `Statement` is stateful. Binding parameters and retrieving the result set will update the state
+/// of the object. The underlying OCI objects are stateful and re-use of an OCI statement for new 
+/// binding parameters or diferent results is more efficient than allocating resources for a new
+/// statement. At the moment changing the SQL requires a new `Statement` but it might prove useful
+/// to allow this to be change also without new allocation in the OCI library.
+/// 
+/// See the [module level documentation][2] for a an overview plus examples.
+/// 
+/// [1]: ../connection/struct.Connection.html 
+/// [2]: index.html
 #[derive(Debug)]
 pub struct Statement<'conn> {
     connection: &'conn Connection,
@@ -26,8 +43,9 @@ pub struct Statement<'conn> {
     result_state: ResultState,
 }
 impl<'conn> Statement<'conn> {
-    pub(crate) fn new(// crate) fn new(// crate) fn new(// crate) fn new(// crate) fn new(// crate) fn new(// crate) fn new(
-                      connection: &'conn Connection,
+    /// Creates a new `Statement`.
+    /// 
+    pub(crate) fn new(connection: &'conn Connection,
                       sql: &str)
                       -> Result<Self, OciError> {
         let statement = prepare_statement(connection, sql)?;
@@ -41,6 +59,65 @@ impl<'conn> Statement<'conn> {
         })
     }
 
+    /// Sets the parameters that will be used in a SQL statement with bind variables.
+    /// 
+    /// The parameters are anything that implement the `ToSqlValue` trait.
+    /// 
+    /// # Errors
+    /// 
+    /// Any error in the underlying calls to the OCI library will be returned.
+    /// 
+    /// # Examples
+    /// 
+    /// Here are various ways to bind paramters:
+    /// 
+    /// ```rust
+    /// use oci_rs::connection::Connection;
+    /// 
+    /// let conn = Connection::new("localhost:1521/xe", "oci_rs", "test").unwrap();
+    ///
+    /// # let mut drop = conn.create_prepared_statement("DROP TABLE Dogs").unwrap();
+    /// # drop.execute().ok();
+    /// # let sql_create = "CREATE TABLE Dogs (DogId INTEGER,
+    /// #                                      Name VARCHAR(20))";
+    /// # let mut create = conn.create_prepared_statement(sql_create).unwrap();
+    /// # create.execute().unwrap();
+    /// # create.commit().unwrap();
+    ///
+    /// // Insert some values using bind variables
+    /// let sql_insert = "INSERT INTO Dogs (DogId, Name)
+    ///                   VALUES (:id, :name)";
+    /// 
+    /// let mut insert = conn.create_prepared_statement(sql_insert).unwrap();
+    /// 
+    /// let id = 1;
+    /// let name = "Poodle";
+    /// 
+    /// insert.bind(&[&id, &name]).unwrap();
+    /// insert.execute().unwrap();
+    /// 
+    /// insert.bind(&[&2, &"Bulldog"]).unwrap();
+    /// insert.execute().unwrap();
+    /// 
+    /// insert.commit();
+    /// 
+    /// let sql_select = "SELECT Name FROM Dogs";
+    /// 
+    /// let mut select = conn.create_prepared_statement(sql_select).unwrap();
+    /// select.execute().unwrap();
+    /// 
+    /// let correct_results = vec!["Poodle".to_string(), "Bulldog".to_string()];
+    /// let results: Vec<String> = select.lazy_result_set()
+    ///                                  .map(|row_result| row_result.unwrap())
+    ///                                  .map(|row| row[0].value::<String>().unwrap())
+    ///                                  .collect();
+    /// 
+    /// assert_eq!(results, correct_results);
+    /// ```
+    /// For large scale inserts to the database this is a bit inefficient as many calls to bind 
+    /// the parameters are needed. OCI does support batch processing and/or arrays of bind
+    /// parameters, however are not yet available through this crate.
+    /// 
     pub fn bind(&mut self, params: &[&ToSqlValue]) -> Result<(), OciError> {
         self.values.clear();
 
@@ -84,6 +161,12 @@ impl<'conn> Statement<'conn> {
         Ok(())
     }
 
+    /// Executes the SQL statement.
+    /// 
+    /// # Errors
+    /// 
+    /// Any error in the underlying calls to the OCI library will be returned.
+    /// 
     pub fn execute(&mut self) -> Result<(), OciError> {
 
         let stmt_type = get_statement_type(self.statement, self.connection.error())?;
@@ -117,6 +200,29 @@ impl<'conn> Statement<'conn> {
         }
     }
 
+    /// Returns the results of a `SELECT` statement.
+    /// 
+    /// After the execution of a `SELECT` statement a result set will be available from the 
+    /// database. This will contain none or many `Row`s of data depending on the query. There are 
+    /// two options for seeing the results, the first is to call this method to retrieve all the
+    /// rows in one go, the second is to iterate through them row by row.
+    /// 
+    /// Should you go for the first option then the rows will be fetched from once this method is
+    /// called. They will not be fetched eagerly as part of the `.execute` call, although this is
+    /// not apparent to the caller. Once the results are retrieved from the database then they will
+    /// be held until either the `Statement` goes out of scope or `.execute` is called again. This
+    /// way repeated calls to `.result_set` will be the same. If there are no data then an empty
+    /// `Vec` will be returned.
+    /// 
+    /// The OCI library internally manages the number of rows that are pre-fetched from the
+    /// database. This can be tweaked at the OCI level, but is not currently available in this
+    /// crate. The OCI default is one row, so for each call to the database two rows are retrieved,
+    /// thus half the number of round trips needed.
+    ///
+    /// # Errors
+    /// 
+    /// Any error in the underlying calls to the OCI library will be returned.
+    /// 
     pub fn result_set(&mut self) -> Result<&Vec<Row>, OciError> {
         match self.result_state {
             ResultState::Fetched => (),
@@ -127,7 +233,72 @@ impl<'conn> Statement<'conn> {
         }
         Ok(&self.result_set)
     }
-
+    
+    /// Returns the results of a `SELECT` statement row by row via the `RowIter` iterator.
+    /// 
+    /// The `RowIter` returned can then be used to run through the rows of data in the result set.
+    /// This is a more attractive option if there are many rows or you want to process the results in
+    /// a pipeline. 
+    /// 
+    /// The same comments about pre-fetching configuration applies here as to `.result_set`.
+    /// 
+    /// # Errors
+    /// 
+    /// This method will not report errors directly however subsequent use of `RowIter` will return
+    /// any OCI errors encountered as each row is fetched.
+    /// 
+    /// # Examples
+    /// 
+    /// ```rust
+    /// use oci_rs::connection::Connection;
+    /// 
+    /// let conn = Connection::new("localhost:1521/xe", "oci_rs", "test").unwrap();
+    ///
+    /// # let mut drop = conn.create_prepared_statement("DROP TABLE Countries").unwrap();
+    /// # drop.execute().ok();
+    /// # let sql_create = "CREATE TABLE Countries (CountryId INTEGER,
+    /// #                                           Name VARCHAR(20))";
+    /// # let mut create = conn.create_prepared_statement(sql_create).unwrap();
+    /// # create.execute().unwrap();
+    /// # create.commit().unwrap();
+    ///
+    /// // Insert some values using bind variables
+    /// let sql_insert = "INSERT INTO Countries (CountryId, Name)
+    ///                   VALUES (:id, :name)";
+    /// let mut insert = conn.create_prepared_statement(sql_insert).unwrap(); 
+    /// 
+    /// let countries = vec!["Great Britain", 
+    ///                      "Australia",
+    ///                      "Burma",
+    ///                      "Japan",
+    ///                      "Sudan",
+    ///                      "France",
+    ///                      "Germany",
+    ///                      "China"];
+    /// 
+    /// for (index, country) in countries.iter().enumerate(){
+    ///     let id = (index + 1) as i64;
+    ///     insert.bind(&[&id, country]).unwrap();
+    ///     insert.execute();
+    /// }
+    /// insert.commit();
+    /// 
+    /// let sql_select = "SELECT Name FROM Countries";
+    /// let mut select = conn.create_prepared_statement(sql_select).unwrap();
+    /// select.execute().unwrap();
+    /// 
+    /// let results: Vec<String> = select.lazy_result_set()
+    ///                                  .map(|row_result| row_result.unwrap())
+    ///                                  .map(|row| row[0].value::<String>().unwrap())
+    ///                                  .filter(|country| country.contains("c") ||
+    ///                                                    country.contains("C"))
+    ///                                  .map(|country| country.to_uppercase())
+    ///                                  .collect();
+    /// assert_eq!(results.len(), 2);
+    /// assert!(results.contains(&"CHINA".to_string()));
+    /// assert!(results.contains(&"FRANCE".to_string()));
+    /// ```
+    ///  
     pub fn lazy_result_set(&mut self) -> RowIter {
         self.results_fetched();
         RowIter {
@@ -135,6 +306,18 @@ impl<'conn> Statement<'conn> {
         }
     }
 
+    /// Commits the changes to the database.
+    /// 
+    /// When a statement makes changes to the database Oracle implicitly starts a
+    /// transaction. If all is well and the session is closed normally this will cause an
+    /// implicit commit of the changes. If anything goes wrong and the sesssion is not closed or 
+    /// the connection is broken, Oracle will roll back the changes. This method, therefore allows 
+    /// you to commit changes when you want, rather than relying on a successfull disconnection.
+    /// 
+    /// # Errors
+    /// 
+    /// Any error in the underlying calls to the OCI library will be returned.
+    /// 
     pub fn commit(&self) -> Result<(), OciError> {
         let commit_result = unsafe {
             OCITransCommit(self.connection.service(),
@@ -151,10 +334,14 @@ impl<'conn> Statement<'conn> {
         }
     }
 
+    /// Transition to fetched state.
+    /// 
     fn results_fetched(&mut self) -> () {
         self.result_state = ResultState::Fetched
     }
 
+    /// Transition to not-fetched state.
+    /// 
     fn results_not_fetched(&mut self) -> () {
         self.result_state = ResultState::NotFetched
     }
@@ -166,7 +353,7 @@ impl<'conn> Drop for Statement<'conn> {
     /// # Panics
     ///
     /// Panics if the resources can't be freed. This would be
-    /// a failure of the underlying OCIStmtRelease function.
+    /// a failure of the underlying OCI function.
     fn drop(&mut self) {
         if let Err(err) = release_statement(self.statement, self.connection.error()) {
             panic!(format!("Could not release the statement Statement: {}", err))
@@ -175,6 +362,11 @@ impl<'conn> Drop for Statement<'conn> {
     }
 }
 
+/// An iterator that will allow results to be returned row by row.
+/// 
+/// See [`Statement.lazy_result_set`][1] for more info.
+/// 
+/// [1]: struct.Statement.html#method.lazy_result_set 
 #[derive(Debug)]
 pub struct RowIter<'stmt> {
     statement: &'stmt Statement<'stmt>
@@ -325,6 +517,10 @@ fn define_output_parameter
      data_size: c_ushort,
      data_type: &OciDataType)
      -> Result<(*mut OCIDefine, Vec<u8>, *mut c_void, Box<c_short>, *mut c_short), OciError> {
+    /// # Errors
+    /// 
+    /// Any error in the underlying calls to the OCI library will be returned.
+    /// 
     let buffer_size = match *data_type {
         OciDataType::SqlChar => data_size,
         _ => data_type.size(),

@@ -145,7 +145,10 @@ pub trait FromSqlValue {
     /// 
     /// It allows for impossible conversions though the use of `Option`.
     /// e.g. an `SqlValue::Null` cannot be converted into a i64.
-    /// 
+    ///
+    /// When the `TryFrom` trait becomes stable then this crate will probably switch to that
+    /// instead.
+    ///
     fn from_sql_value(sql_value: &SqlValue) -> Option<Self> where Self: Sized;
 }
 

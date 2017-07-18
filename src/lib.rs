@@ -319,6 +319,120 @@ pub mod types;
 /// number.
 /// 
 pub mod row;
+
+/// SQL statements run against the database.
+/// 
+/// `Statement`s are created to run a SQL Statement against a database. They prepare the statement
+/// for execution and allow bind variables to be set. If there are results then these these can be
+/// returned all in one go or lazily through an iterator.
+/// 
+/// # Overview 
+/// 
+/// The process is as follows:
+/// 
+/// 1. Create a `Statement` from a connection with a given SQL statement. This will create a
+///    prepared statement on the Oracle side.
+/// 2. If the SQL contains bind variable placeholders then these values should now be set via a
+///    call to `.bind`. Although OCI supports both positional and named bind variables, only
+///    positional are curently support by `Statement`. Oracle uses the form `:name` where `name`is
+///    the bind variable.
+/// 3. Execute the statement.
+/// 4. Commit the transaction if data was changed. Oracle implicitly creates a transaction when data
+///    is changed and commits automatically with a normal session close and log-off. If we
+///    disconnect abnormally however, a rollback is initiated.
+/// 5. If there are results i.e. it was a `SELECT` statement, then fetch the results. The entire
+///    result set can be returned as a `Vec<Row>` or instead an iterator can be used to return the
+///    `Row`s one by one. These are fetched from OCI by the iterator as needed.
+///    
+/// A connection can create multiple `Statement`s. In the examples in this document there is
+/// usually one for each of the `DROP`, `CREATE`, `INSERT` and `SELECT` SQL statements used in the
+/// examples.
+/// 
+/// # Examples
+/// 
+/// We will run through the above process to create a table, add some values and then return them
+/// lazily.
+/// 
+/// ```rust
+/// use oci_rs::connection::Connection;
+/// use oci_rs::row::Row;
+///
+/// let conn = Connection::new("localhost:1521/xe", "oci_rs", "test").unwrap();
+///
+/// // We must drop the table for this example to pass testing, as Oracle will not 
+/// // let us create it twice. We use `.ok` here to supress any error as the first time it
+/// // runs there is no table to drop.
+/// let mut drop = conn.create_prepared_statement("DROP TABLE Cities").unwrap();
+/// drop.execute().ok();
+///
+/// // Create a table
+/// let sql_create = "CREATE TABLE Cities (CityId INTEGER,
+///                                        Name VARCHAR(20))";
+///                                        
+/// let mut create = conn.create_prepared_statement(sql_create).unwrap();
+///
+/// // Execute the create statement
+/// create.execute().unwrap();
+///
+/// // Commit in case we lose connection (an abnormal disconnection would result
+/// // in an automatic roll-back.)
+/// create.commit().unwrap();
+///
+/// // Insert some values using bind variables
+/// let sql_insert = "INSERT INTO Cities (CityId, Name)
+///                   VALUES (:id, :name)";
+/// let mut insert = conn.create_prepared_statement(sql_insert).unwrap();
+///
+/// let values = vec![(1, "Paris"),
+///                   (2, "London"),
+///                   (3, "Hamburg"),
+///                   (4, "Miami")];
+///
+/// // Run through the list of values, bind them and execute the statement
+/// for value in values.iter() {
+///     insert.bind(&[&value.0, &value.1]).unwrap();
+///     insert.execute().unwrap()
+/// }
+///
+/// insert.commit().unwrap();
+///
+/// // Create a query
+/// let sql_select = "SELECT * FROM Cities";
+///
+/// let mut select = conn.create_prepared_statement(sql_select).unwrap();
+///
+/// // Execute
+/// select.execute().unwrap();
+///
+/// // Get the result set row by row from an iterator
+/// for (index, row_result) in select.lazy_result_set().enumerate(){
+///     let row = row_result.unwrap();
+///     let city_id: i64 = row[0].value().unwrap();
+///     let city_name: String = row[1].value().unwrap(); 
+///     assert_eq!(city_id, values[index].0);
+///     assert_eq!(city_name, values[index].1);
+/// }
+/// 
+/// // Or perhaps something a bit more convoluted just to make use of iterator adapters
+/// 
+/// // Execute again to get fresh results
+/// select.execute().unwrap();
+/// 
+/// // Get cities containing an 'a':
+/// let results: Vec<String> = select.lazy_result_set()
+///                                  .map(|row_result| row_result.unwrap())
+///                                  .map(|row| row[1].value::<String>().unwrap())
+///                                  .filter(|city| city.contains("a"))
+///                                  .collect();
+///
+/// let correct_result = vec!["Paris".to_string(), 
+///                           "Hamburg".to_string(), 
+///                           "Miami".to_string()]; 
+/// assert_eq!(results, correct_result);
+/// ```
+/// The final example is a bit awkard because we have `Result`s and `Option`s to deal with
+/// (or ignored as in this case) but it is added as a reminder that iterator methods can be used.
+/// 
 pub mod statement;
 mod oci_bindings;
 
