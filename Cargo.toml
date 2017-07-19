@@ -2,6 +2,13 @@
 name = "oci_rs"
 version = "0.3.0"
 authors = ["Huw Wynn-Jones <huw@huwwynnjones.com>"]
+description = "This crate provides a Rust wrapper to the Oracle Call Interface (OCI) library."
+keywords = ["oracle", "database", "sql", "oci", "db"]
+categories = ["database", "api-bindings"]
+license = "MIT"
+documentation = ""
+homepage = ""
+repository = ""
 
 [dependencies]
 libc = "0.2.23"
