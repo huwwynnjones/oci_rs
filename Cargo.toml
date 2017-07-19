@@ -1,5 +1,5 @@
 [package]
-name = "oci-rs"
+name = "oci_rs"
 version = "0.3.0"
 authors = ["Huw Wynn-Jones <huw@huwwynnjones.com>"]
 
