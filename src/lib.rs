@@ -149,8 +149,8 @@
 //! [7]: http://www.oracle.com/technetwork/database/features/instant-client/index-097480.html
 //! [8]: https://www.opensuse.org/
 //! [9]: http://www.oracle.com/technetwork/database/database-technologies/express-edition/overview/index.html
-//! [10]: http://docs.oracle.com/database/122/LNOCI/toc.html
-//! [11]: https://docs.oracle.com/database/122/ERRMG/toc.html
+//! [10]: http://docs.oracle.com/database/122/LNOCI/toc.htm
+//! [11]: https://docs.oracle.com/database/122/ERRMG/toc.htm
 //!
 
 extern crate libc;
