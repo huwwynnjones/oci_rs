@@ -4,6 +4,8 @@ oci_rs provides a Rust wrapper to the [Oracle Call Interface][1] (OCI) library.
 The Oracle site describes OCI as a "...comprehensive, high performance, native C
 language interface to Oracle Database for custom or packaged applications...".
 
+This readme is lifted from the [crate documentation][12].
+
 ## Overview
 
 The OCI library is the original Oracle C API for interacting with their database. It is the one
@@ -152,3 +154,4 @@ additional information that is not included in the text returned from the librar
 [9]: http://www.oracle.com/technetwork/database/database-technologies/express-edition/overview/index.html
 [10]: http://docs.oracle.com/database/122/LNOCI/toc.html
 [11]: https://docs.oracle.com/database/122/ERRMG/toc.html
+[12]: https://docs.rs/oci_rs/0.3.1/oci_rs/ 
