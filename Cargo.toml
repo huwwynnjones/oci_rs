@@ -6,9 +6,8 @@ description = "This crate provides a Rust wrapper to the Oracle Call Interface (
 keywords = ["oracle", "database", "sql", "oci", "db"]
 categories = ["database", "api-bindings"]
 license = "MIT"
-documentation = ""
-homepage = ""
-repository = ""
+homepage = "https://github.com/huwwynnjones/oci_rs"
+repository = "https://github.com/huwwynnjones/oci_rs"
 
 [dependencies]
 libc = "0.2.23"
