@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Statement` struct in crate `oci_rs`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Statement">
+
+    <title>oci_rs::statement::Statement - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc struct">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'>Struct Statement</p><div class="block items"><ul><li><a href="#methods">Methods</a></li><li><a href="#implementations">Trait Implementations</a></li></ul></div><p class='location'><a href='../index.html'>oci_rs</a>::<wbr><a href='index.html'>statement</a></p><script>window.sidebarCurrent = {name: 'Statement', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>oci_rs</a>::<wbr><a href='index.html'>statement</a>::<wbr><a class="struct" href=''>Statement</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/oci_rs/statement.rs.html#37-44' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct Statement&lt;'conn&gt; { /* fields omitted */ }</pre><div class='docblock'><p>Represents a statement that is executed against a database.</p>
+
+<p>A <code>Statement</code> cannot be created directly, instead it is brought to life through
+the <code>.create_prepared_statement</code> method of a <a href="../connection/struct.Connection.html"><code>Connection</code></a>. It can only live as
+long as its parent <code>Connection</code> and when it goes out of scope the underlying resources
+will be released via a <code>Drop</code> implementation.</p>
+
+<p>A <code>Statement</code> is stateful. Binding parameters and retrieving the result set will update the state
+of the object. The underlying OCI objects are stateful and re-use of an OCI statement for new
+binding parameters or diferent results is more efficient than allocating resources for a new
+statement. At the moment changing the SQL requires a new <code>Statement</code> but it might prove useful
+in future to allow this to be also changed without new allocation in the OCI library.</p>
+
+<p>See the <a href="index.html">module level documentation</a> for an overview plus examples.</p>
+</div><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl&lt;'conn&gt; <a class="struct" href="../../oci_rs/statement/struct.Statement.html" title="struct oci_rs::statement::Statement">Statement</a>&lt;'conn&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/oci_rs/statement.rs.html#45-347' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.bind' class="method"><span id='bind.v' class='invisible'><code>fn <a href='#method.bind' class='fnname'>bind</a>(&amp;mut self, params: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a>&amp;<a class="trait" href="../../oci_rs/types/trait.ToSqlValue.html" title="trait oci_rs::types::ToSqlValue">ToSqlValue</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.tuple.html">()</a>, <a class="enum" href="../../oci_rs/oci_error/enum.OciError.html" title="enum oci_rs::oci_error::OciError">OciError</a>&gt;</code></span></h4>
+<div class='docblock'><p>Sets the parameters that will be used in a SQL statement with bind variables.</p>
+
+<p>The parameters are anything that implement the <code>ToSqlValue</code> trait.</p>
+
+<h1 id='errors' class='section-header'><a href='#errors'>Errors</a></h1>
+<p>Any error in the underlying calls to the OCI library will be returned.</p>
+
+<h1 id='examples' class='section-header'><a href='#examples'>Examples</a></h1>
+<p>Here are various ways to bind paramters:</p>
+
+<pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">oci_rs</span>::<span class="ident">connection</span>::<span class="ident">Connection</span>;
+
+<span class="kw">let</span> <span class="ident">conn</span> <span class="op">=</span> <span class="ident">Connection</span>::<span class="ident">new</span>(<span class="string">&quot;localhost:1521/xe&quot;</span>, <span class="string">&quot;oci_rs&quot;</span>, <span class="string">&quot;test&quot;</span>).<span class="ident">unwrap</span>();
+
+
+<span class="comment">// Insert some values using bind variables</span>
+<span class="kw">let</span> <span class="ident">sql_insert</span> <span class="op">=</span> <span class="string">&quot;INSERT INTO Dogs (DogId, Name)
+                  VALUES (:id, :name)&quot;</span>;
+
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">insert</span> <span class="op">=</span> <span class="ident">conn</span>.<span class="ident">create_prepared_statement</span>(<span class="ident">sql_insert</span>).<span class="ident">unwrap</span>();
+
+<span class="kw">let</span> <span class="ident">id</span> <span class="op">=</span> <span class="number">1</span>;
+<span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="string">&quot;Poodle&quot;</span>;
+
+<span class="ident">insert</span>.<span class="ident">bind</span>(<span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="ident">id</span>, <span class="kw-2">&amp;</span><span class="ident">name</span>]).<span class="ident">unwrap</span>();
+<span class="ident">insert</span>.<span class="ident">execute</span>().<span class="ident">unwrap</span>();
+
+<span class="ident">insert</span>.<span class="ident">bind</span>(<span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="number">2</span>, <span class="kw-2">&amp;</span><span class="string">&quot;Bulldog&quot;</span>]).<span class="ident">unwrap</span>();
+<span class="ident">insert</span>.<span class="ident">execute</span>().<span class="ident">unwrap</span>();
+
+<span class="ident">insert</span>.<span class="ident">commit</span>();
+
+<span class="kw">let</span> <span class="ident">sql_select</span> <span class="op">=</span> <span class="string">&quot;SELECT Name FROM Dogs&quot;</span>;
+
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">select</span> <span class="op">=</span> <span class="ident">conn</span>.<span class="ident">create_prepared_statement</span>(<span class="ident">sql_select</span>).<span class="ident">unwrap</span>();
+<span class="ident">select</span>.<span class="ident">execute</span>().<span class="ident">unwrap</span>();
+
+<span class="kw">let</span> <span class="ident">correct_results</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;Poodle&quot;</span>.<span class="ident">to_string</span>(), <span class="string">&quot;Bulldog&quot;</span>.<span class="ident">to_string</span>()];
+<span class="kw">let</span> <span class="ident">results</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">select</span>.<span class="ident">lazy_result_set</span>()
+                                 .<span class="ident">map</span>(<span class="op">|</span><span class="ident">row_result</span><span class="op">|</span> <span class="ident">row_result</span>.<span class="ident">unwrap</span>())
+                                 .<span class="ident">map</span>(<span class="op">|</span><span class="ident">row</span><span class="op">|</span> <span class="ident">row</span>[<span class="number">0</span>].<span class="ident">value</span>::<span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>().<span class="ident">unwrap</span>())
+                                 .<span class="ident">collect</span>();
+
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">results</span>, <span class="ident">correct_results</span>);</pre>
+
+<p>For large scale inserts to the database this is a bit inefficient as many calls to bind
+the parameters are needed. OCI does support batch processing and/or arrays of bind
+parameters, however this is not yet available through this crate.</p>
+</div><h4 id='method.execute' class="method"><span id='execute.v' class='invisible'><code>fn <a href='#method.execute' class='fnname'>execute</a>(&amp;mut self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.tuple.html">()</a>, <a class="enum" href="../../oci_rs/oci_error/enum.OciError.html" title="enum oci_rs::oci_error::OciError">OciError</a>&gt;</code></span></h4>
+<div class='docblock'><p>Executes the SQL statement.</p>
+
+<h1 id='errors-1' class='section-header'><a href='#errors-1'>Errors</a></h1>
+<p>Any error in the underlying calls to the OCI library will be returned.</p>
+</div><h4 id='method.result_set' class="method"><span id='result_set.v' class='invisible'><code>fn <a href='#method.result_set' class='fnname'>result_set</a>(&amp;mut self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;&amp;<a class="struct" href="https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html" title="struct collections::vec::Vec">Vec</a>&lt;<a class="struct" href="../../oci_rs/row/struct.Row.html" title="struct oci_rs::row::Row">Row</a>&gt;, <a class="enum" href="../../oci_rs/oci_error/enum.OciError.html" title="enum oci_rs::oci_error::OciError">OciError</a>&gt;</code></span></h4>
+<div class='docblock'><p>Returns the results of a <code>SELECT</code> statement.</p>
+
+<p>After the execution of a <code>SELECT</code> statement a result set will be available from the
+database. This will contain none or many <code>Row</code>s of data depending on the query. There are
+two options for seeing the results, the first is to call this method to retrieve all the
+rows in one go, the second is to iterate through them row by row.</p>
+
+<p>Should you go for the first option then the rows will be fetched from once this method is
+called. They will not be fetched eagerly as part of the <code>.execute</code> call, although this is
+not apparent to the caller. Once the results are retrieved from the database then they will
+be held until either the <code>Statement</code> goes out of scope or <code>.execute</code> is called again. This
+way, repeated calls to <code>.result_set</code> will be the same. If there are no data then an empty
+<code>Vec&lt;Row&gt;</code> will be returned.</p>
+
+<p>The OCI library internally manages the number of rows that are pre-fetched from the
+database. This can be tweaked at the OCI level, but is not currently available in this
+crate. The OCI default is one row, so for each call to the database two rows are retrieved,
+thus half the number of round trips needed.</p>
+
+<h1 id='errors-2' class='section-header'><a href='#errors-2'>Errors</a></h1>
+<p>Any error in the underlying calls to the OCI library will be returned.</p>
+</div><h4 id='method.lazy_result_set' class="method"><span id='lazy_result_set.v' class='invisible'><code>fn <a href='#method.lazy_result_set' class='fnname'>lazy_result_set</a>(&amp;mut self) -&gt; <a class="struct" href="../../oci_rs/statement/struct.RowIter.html" title="struct oci_rs::statement::RowIter">RowIter</a></code></span></h4>
+<div class='docblock'><p>Returns the results of a <code>SELECT</code> statement row by row via the <code>RowIter</code> iterator.</p>
+
+<p>The <code>RowIter</code> returned can then be used to run through the rows of data in the result set.
+This is a more attractive option if there are many rows or you want to process the results in
+a pipeline.</p>
+
+<p>The same comments about pre-fetching configuration applies here as to <code>.result_set</code>.</p>
+
+<h1 id='errors-3' class='section-header'><a href='#errors-3'>Errors</a></h1>
+<p>This method will not report errors directly however subsequent use of <code>RowIter</code> will return
+any OCI errors encountered as each row is fetched.</p>
+
+<h1 id='examples-1' class='section-header'><a href='#examples-1'>Examples</a></h1>
+<pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">oci_rs</span>::<span class="ident">connection</span>::<span class="ident">Connection</span>;
+
+<span class="kw">let</span> <span class="ident">conn</span> <span class="op">=</span> <span class="ident">Connection</span>::<span class="ident">new</span>(<span class="string">&quot;localhost:1521/xe&quot;</span>, <span class="string">&quot;oci_rs&quot;</span>, <span class="string">&quot;test&quot;</span>).<span class="ident">unwrap</span>();
+
+
+<span class="comment">// Insert some values using bind variables</span>
+<span class="kw">let</span> <span class="ident">sql_insert</span> <span class="op">=</span> <span class="string">&quot;INSERT INTO Countries (CountryId, Name)
+                  VALUES (:id, :name)&quot;</span>;
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">insert</span> <span class="op">=</span> <span class="ident">conn</span>.<span class="ident">create_prepared_statement</span>(<span class="ident">sql_insert</span>).<span class="ident">unwrap</span>();
+
+<span class="kw">let</span> <span class="ident">countries</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;Great Britain&quot;</span>,
+                     <span class="string">&quot;Australia&quot;</span>,
+                     <span class="string">&quot;Burma&quot;</span>,
+                     <span class="string">&quot;Japan&quot;</span>,
+                     <span class="string">&quot;Sudan&quot;</span>,
+                     <span class="string">&quot;France&quot;</span>,
+                     <span class="string">&quot;Germany&quot;</span>,
+                     <span class="string">&quot;China&quot;</span>];
+
+<span class="kw">for</span> (<span class="ident">index</span>, <span class="ident">country</span>) <span class="kw">in</span> <span class="ident">countries</span>.<span class="ident">iter</span>().<span class="ident">enumerate</span>(){
+    <span class="kw">let</span> <span class="ident">id</span> <span class="op">=</span> (<span class="ident">index</span> <span class="op">+</span> <span class="number">1</span>) <span class="kw">as</span> <span class="ident">i64</span>;
+    <span class="ident">insert</span>.<span class="ident">bind</span>(<span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="ident">id</span>, <span class="ident">country</span>]).<span class="ident">unwrap</span>();
+    <span class="ident">insert</span>.<span class="ident">execute</span>();
+}
+<span class="ident">insert</span>.<span class="ident">commit</span>();
+
+<span class="kw">let</span> <span class="ident">sql_select</span> <span class="op">=</span> <span class="string">&quot;SELECT Name FROM Countries&quot;</span>;
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">select</span> <span class="op">=</span> <span class="ident">conn</span>.<span class="ident">create_prepared_statement</span>(<span class="ident">sql_select</span>).<span class="ident">unwrap</span>();
+<span class="ident">select</span>.<span class="ident">execute</span>().<span class="ident">unwrap</span>();
+
+<span class="kw">let</span> <span class="ident">results</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">select</span>.<span class="ident">lazy_result_set</span>()
+                                 .<span class="ident">map</span>(<span class="op">|</span><span class="ident">row_result</span><span class="op">|</span> <span class="ident">row_result</span>.<span class="ident">unwrap</span>())
+                                 .<span class="ident">map</span>(<span class="op">|</span><span class="ident">row</span><span class="op">|</span> <span class="ident">row</span>[<span class="number">0</span>].<span class="ident">value</span>::<span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>().<span class="ident">unwrap</span>())
+                                 .<span class="ident">filter</span>(<span class="op">|</span><span class="ident">country</span><span class="op">|</span> <span class="ident">country</span>.<span class="ident">contains</span>(<span class="string">&quot;c&quot;</span>) <span class="op">||</span>
+                                                   <span class="ident">country</span>.<span class="ident">contains</span>(<span class="string">&quot;C&quot;</span>))
+                                 .<span class="ident">map</span>(<span class="op">|</span><span class="ident">country</span><span class="op">|</span> <span class="ident">country</span>.<span class="ident">to_uppercase</span>())
+                                 .<span class="ident">collect</span>();
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">results</span>.<span class="ident">len</span>(), <span class="number">2</span>);
+<span class="macro">assert</span><span class="macro">!</span>(<span class="ident">results</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="string">&quot;CHINA&quot;</span>.<span class="ident">to_string</span>()));
+<span class="macro">assert</span><span class="macro">!</span>(<span class="ident">results</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="string">&quot;FRANCE&quot;</span>.<span class="ident">to_string</span>()));</pre>
+</div><h4 id='method.commit' class="method"><span id='commit.v' class='invisible'><code>fn <a href='#method.commit' class='fnname'>commit</a>(&amp;self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.tuple.html">()</a>, <a class="enum" href="../../oci_rs/oci_error/enum.OciError.html" title="enum oci_rs::oci_error::OciError">OciError</a>&gt;</code></span></h4>
+<div class='docblock'><p>Commits the changes to the database.</p>
+
+<p>When a statement makes changes to the database Oracle implicitly starts a
+transaction. If all is well and the session is closed normally this will cause an
+implicit commit of the changes. If anything goes wrong and the sesssion is not closed or
+the connection is broken, Oracle will roll back the changes. This method, therefore allows
+you to commit changes when you want, rather than relying on a successfull disconnection.</p>
+
+<h1 id='errors-4' class='section-header'><a href='#errors-4'>Errors</a></h1>
+<p>Any error in the underlying calls to the OCI library will be returned.</p>
+</div></div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl&lt;'conn&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> for <a class="struct" href="../../oci_rs/statement/struct.Statement.html" title="struct oci_rs::statement::Statement">Statement</a>&lt;'conn&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/oci_rs/statement.rs.html#36' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt' class="method"><span id='fmt.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, __arg_0: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span></h4>
+<div class='docblock'><p>Formats the value using the given formatter.</p>
+</div></div><h3 class='impl'><span class='in-band'><code>impl&lt;'conn&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html" title="trait core::ops::Drop">Drop</a> for <a class="struct" href="../../oci_rs/statement/struct.Statement.html" title="struct oci_rs::statement::Statement">Statement</a>&lt;'conn&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/oci_rs/statement.rs.html#349-362' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.drop' class="method"><span id='drop.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop' class='fnname'>drop</a>(&amp;mut self)</code></span></h4>
+<div class='docblock'><p>Frees any internal handles allocated by the OCI library.</p>
+
+<h1 id='panics' class='section-header'><a href='#panics'>Panics</a></h1>
+<p>Panics if the resources can&#39;t be freed. This would be
+a failure of the underlying OCI function.</p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "oci_rs";
+    </script>
+    <script src="../../jquery.js"></script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["Row","Represents a row of data returned from a SQL query."]]});

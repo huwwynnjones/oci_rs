@@ -1,0 +1,1 @@
+initSidebarItems({"mod":[["connection","Connections to a database."],["oci_error","Errors."],["row","Rows of data returned from a query"],["statement","SQL statements run against the database."],["types","Types used in conversion between OCI and Rust types."]]});
