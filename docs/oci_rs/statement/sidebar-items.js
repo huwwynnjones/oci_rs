@@ -1,1 +1,0 @@
-initSidebarItems({"struct":[["RowIter","An iterator that will allow results to be returned row by row."],["Statement","Represents a statement that is executed against a database."]]});

@@ -1,1 +1,0 @@
-initSidebarItems({"struct":[["Connection","Represents a connection to a database."]]});
