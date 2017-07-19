@@ -36,11 +36,11 @@
 //!
 //! This crate is developed against version 12.2 of the OCI library. It is expected to work with
 //! 12.x.x but is not tested. The OCI client library needs to be installed on your machine and can be
-//! downloaded [here][7]. If you are on Linux then you are likely to need to tell the linker where
-//! to find the files.
+//! downloaded [here][7].
 //!
-//! Adding this to my `.bashrc` file worked for me. The details will vary according to your distro,
-//! mine is [OpenSuse][8].
+//! If you are on Linux then you are likely to need to tell the linker where
+//! to find the files. Adding this to my `.bashrc` file worked for me, however the details may vary
+//! according to your distro, mine is [OpenSuse][8].
 //!
 //! ```text
 //! export LIBRARY_PATH=$LIBRARY_PATH:/usr/lib/oracle/12.2/client64/lib/
@@ -52,11 +52,11 @@
 //! In order to run the crate tests then a local database needs to be
 //! available on `localhost:1521/xe` with a user `oci_rs` and password `test`.
 //!
-//! In order to use oci_rs add this to your `Cargo.toml`:
+//! In order to use `oci_rs` add this to your `Cargo.toml`:
 //!
 //! ```toml
 //! [dependencies]
-//! oci_rs = "0.1.0"
+//! oci_rs = "0.3.0"
 //! ```
 //! and this to your crate root:
 //!
@@ -167,6 +167,29 @@ extern crate byteorder;
 /// More advanced connection options such as connection and statement pooling are not yet
 /// available.
 ///
+/// # Examples
+///
+/// Connection and statement creation with error handling:
+///
+/// ```rust
+/// use oci_rs::connection::Connection;
+///
+/// let connection = match Connection::new("localhost:1521/xe",
+///                                        "oci_rs",
+///                                        "test") {
+///     Ok(conn) => conn,
+///     Err(err) => panic!("Failed to create a connection: {}", err),
+/// };
+///
+/// let sql_create = "CREATE TABLE Cats (CatId INTEGER,
+///                                      Name VARCHAR(20))";
+///
+/// let create = match connection.create_prepared_statement(sql_create) {
+///     Ok(stmt) => stmt,
+///     Err(err) => panic!("Failed to create a statement: {}", err),
+/// };
+/// ```
+///
 pub mod connection;
 
 /// Errors.
@@ -221,16 +244,16 @@ pub mod oci_error;
 /// For number types in particular there are less `SqlValue`s than SQL types. Inside Oracle all
 /// numbers are stored as a `NUMBER`. This is an Oracle format that can handle all integer and
 /// float values with a precision of 38 digits. Regardless of whether the SQL statement specifies
-/// an `INT` or `FLOAT` or `LONG`, Oracle will store it as a `NUMBER`. The OCI library allows you
+/// an `INTEGER` or `FLOAT` or `LONG`, Oracle will store it as a `NUMBER`. The OCI library then allows you
 /// to convert it into any numeric type you like, but that forces you to explicitly state the type
-/// of the columns when retrieving the values. To avoid this, this wrapper makes some executive
+/// of the columns when retrieving the values. To avoid this, this crate makes some executive
 /// decisions based on the `NUMBER` value. As per the OCI documentation the basic type of a number can be
 /// determined by the scale and precision of the `NUMBER` value. If the precision is non-zero and
-/// scale is -127 then the number is a `FLOAT` otherwise we consider it an `INTEGER`. So, according to this
-/// logic the caller will receive either `SqlValue::Integer` or `SqlValue::Float`. These two variants
-/// contain an `i64` and `f64` respectively. If a smaller type is needed in Rust code, then further
-/// conversions can be made. This appears to be sufficient to allow retrieval of data in queries,
-/// without having specify column types on the Rust side ahead of time.
+/// scale is -127 then the number is a `FLOAT` otherwise we can consider it an `INTEGER`. 
+/// So, according to this logic the caller will receive either `SqlValue::Integer` or `SqlValue::Float`. 
+/// These two variants contain an `i64` and `f64` respectively. If a smaller type is needed in Rust code, 
+/// then further conversions can be made. This appears to be sufficient to allow retrieval of data in 
+/// queries, without having specify column types on the Rust side ahead of time.
 ///
 /// Note: Oracle also supports types known as `BINARY_FLOAT` and `BINARY_DOUBLE`. These can also be
 /// used to store numbers inside the database as an alternative to `NUMBER`. They are not currently
@@ -252,7 +275,6 @@ pub mod oci_error;
 /// use oci_rs::connection::Connection;
 ///
 /// let conn = Connection::new("localhost:1521/xe", "oci_rs", "test").unwrap();
-///
 /// # let mut drop = conn.create_prepared_statement("DROP TABLE Men").unwrap();
 /// # drop.execute().ok();
 ///
@@ -270,7 +292,7 @@ pub mod oci_error;
 /// // in an automatic roll-back.)
 /// create.commit().unwrap();
 ///
-/// // Insert some values using bind variables
+/// // Insert some values
 /// let sql_insert = "INSERT INTO Men (ManId, Name, Height)
 ///                   VALUES (1, 'Roger', 183.4)";
 ///  let mut insert = conn.create_prepared_statement(sql_insert).unwrap();
@@ -313,23 +335,23 @@ pub mod oci_error;
 pub mod types;
 
 /// Rows of data returned from a query
-/// 
+///
 /// A `Row` represents a row of data returned from a SQL query. Internally it holds the columns
 /// and their values. It implements the `Index` trait and so columns can be accessed via an index
 /// number.
-/// 
+///
 pub mod row;
 
 /// SQL statements run against the database.
-/// 
+///
 /// `Statement`s are created to run a SQL Statement against a database. They prepare the statement
 /// for execution and allow bind variables to be set. If there are results then these these can be
 /// returned all in one go or lazily through an iterator.
-/// 
-/// # Overview 
-/// 
+///
+/// # Overview
+///
 /// The process is as follows:
-/// 
+///
 /// 1. Create a `Statement` from a connection with a given SQL statement. This will create a
 ///    prepared statement on the Oracle side.
 /// 2. If the SQL contains bind variable placeholders then these values should now be set via a
@@ -343,32 +365,29 @@ pub mod row;
 /// 5. If there are results i.e. it was a `SELECT` statement, then fetch the results. The entire
 ///    result set can be returned as a `Vec<Row>` or instead an iterator can be used to return the
 ///    `Row`s one by one. These are fetched from OCI by the iterator as needed.
-///    
+///
 /// A connection can create multiple `Statement`s. In the examples in this document there is
 /// usually one for each of the `DROP`, `CREATE`, `INSERT` and `SELECT` SQL statements used in the
 /// examples.
-/// 
+///
 /// # Examples
-/// 
+///
 /// We will run through the above process to create a table, add some values and then return them
-/// lazily.
-/// 
+/// lazily. Every OCI call can fail and the below example avoids handling errors in order to make
+/// the example easier to read, notice how many `.unwrap`s are here.
+///
 /// ```rust
 /// use oci_rs::connection::Connection;
 /// use oci_rs::row::Row;
 ///
 /// let conn = Connection::new("localhost:1521/xe", "oci_rs", "test").unwrap();
-///
-/// // We must drop the table for this example to pass testing, as Oracle will not 
-/// // let us create it twice. We use `.ok` here to supress any error as the first time it
-/// // runs there is no table to drop.
-/// let mut drop = conn.create_prepared_statement("DROP TABLE Cities").unwrap();
-/// drop.execute().ok();
+/// # let mut drop = conn.create_prepared_statement("DROP TABLE Cities").unwrap();
+/// # drop.execute().ok();
 ///
 /// // Create a table
 /// let sql_create = "CREATE TABLE Cities (CityId INTEGER,
 ///                                        Name VARCHAR(20))";
-///                                        
+///
 /// let mut create = conn.create_prepared_statement(sql_create).unwrap();
 ///
 /// // Execute the create statement
@@ -408,47 +427,49 @@ pub mod row;
 /// for (index, row_result) in select.lazy_result_set().enumerate(){
 ///     let row = row_result.unwrap();
 ///     let city_id: i64 = row[0].value().unwrap();
-///     let city_name: String = row[1].value().unwrap(); 
+///     let city_name: String = row[1].value().unwrap();
 ///     assert_eq!(city_id, values[index].0);
 ///     assert_eq!(city_name, values[index].1);
 /// }
-/// 
+///
 /// // Or perhaps something a bit more convoluted just to make use of iterator adapters
-/// 
+///
 /// // Execute again to get fresh results
 /// select.execute().unwrap();
-/// 
+///
 /// // Get cities containing an 'a':
 /// let results: Vec<String> = select.lazy_result_set()
-///                                  .map(|row_result| row_result.unwrap())
-///                                  .map(|row| row[1].value::<String>().unwrap())
+///                                  .map(|row_result| {
+///                                           let row = row_result.unwrap();
+///                                           row[1].value::<String>().unwrap()
+///                                       })
 ///                                  .filter(|city| city.contains("a"))
 ///                                  .collect();
 ///
-/// let correct_result = vec!["Paris".to_string(), 
-///                           "Hamburg".to_string(), 
-///                           "Miami".to_string()]; 
+/// let correct_result = vec!["Paris".to_string(),
+///                           "Hamburg".to_string(),
+///                           "Miami".to_string()];
 /// assert_eq!(results, correct_result);
 /// ```
 /// The final example is a bit awkard because we have `Result`s and `Option`s to deal with
 /// (or ignored as in this case) but it is added as a reminder that iterator methods can be used.
-/// 
+///
 pub mod statement;
 mod oci_bindings;
 
 
 #[cfg(test)]
 mod tests {
-use connection::Connection;
-const CONNECTION: &str = "localhost:1521/xe";
-const USER: &str = "oci_rs";
-const PASSWORD: &str = "test";
+    use connection::Connection;
+    const CONNECTION: &str = "localhost:1521/xe";
+    const USER: &str = "oci_rs";
+    const PASSWORD: &str = "test";
 
-#[test]
-#[allow(unused_variables)]
-fn create_connection() {
-    let conn = match Connection::new(CONNECTION, USER, PASSWORD) {
-        Ok(conn) => conn,
+    #[test]
+    #[allow(unused_variables)]
+    fn create_connection() {
+        let conn = match Connection::new(CONNECTION, USER, PASSWORD) {
+            Ok(conn) => conn,
             Err(err) => panic!("Failed to create a connection: {}", err),
         };
     }

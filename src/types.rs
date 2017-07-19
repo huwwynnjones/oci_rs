@@ -37,6 +37,11 @@ impl SqlValue {
     ///
     /// assert_eq!(i, 42);
     /// assert_eq!(s, "42");
+    /// 
+    /// let null = SqlValue::Null;
+    /// let null_as_i64: Option<i64> = null.value();
+    /// 
+    /// assert_eq!(null_as_i64, None);
     /// ```
     ///
     pub fn value<T: FromSqlValue>(&self) -> Option<T> {
@@ -81,7 +86,8 @@ impl SqlValue {
 
     /// Create an `SqlValue` from a slice of bytes and indication of the data type
     ///
-    pub(crate) fn create_from_raw(data: &[u8],
+    pub(crate) fn create_from_raw(// crate) fn create_from_raw(
+                                  data: &[u8],
                                   sql_type: &OciDataType)
                                   -> Result<Self, OciError> {
         match *sql_type {
@@ -105,10 +111,10 @@ impl SqlValue {
 }
 
 /// Allows conversion into a `SqlValue`.
-/// 
+///
 pub trait ToSqlValue {
     /// Converts into a `SqlValue`.
-    /// 
+    ///
     fn to_sql_value(&self) -> SqlValue;
 }
 
@@ -139,10 +145,10 @@ impl ToSqlValue for f64 {
 }
 
 /// Allows conversion from a `SqlValue`.
-/// 
+///
 pub trait FromSqlValue {
     /// Converts from a `SqlValue`.
-    /// 
+    ///
     /// It allows for impossible conversions though the use of `Option`.
     /// e.g. an `SqlValue::Null` cannot be converted into a i64.
     ///
@@ -154,11 +160,11 @@ pub trait FromSqlValue {
 
 impl FromSqlValue for String {
     // Converts from a `SqlValue` into a `String`
-    // 
-    // Worth noting that this is intend to convert all types into a 
-    // `String` representation of the value. It also does this for 
+    //
+    // Worth noting that this is intend to convert all types into a
+    // `String` representation of the value. It also does this for
     // `SqlValue::Null` for which is returns "null". That might prove a bad idea.
-    // 
+    //
     fn from_sql_value(sql_value: &SqlValue) -> Option<Self> {
         match *sql_value {
             SqlValue::VarChar(ref s) => Some(s.to_string()),

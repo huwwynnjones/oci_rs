@@ -45,7 +45,7 @@ impl error::Error for OciError {
 }
 
 /// Used to capture the errors details from OCI errors. Typically
-/// this come as Oracle error codes and text such as
+/// these come as Oracle error codes and text such as
 /// "ORA-24312: illegal parameters specified for allocating user memory"
 #[derive(Debug)]
 pub struct ErrorRecord {
@@ -90,7 +90,8 @@ impl fmt::Display for ErrorRecord {
 /// Fetches the error records registered against the handle provided. If it is called
 /// out of sequence then the errors returned might be caused by a different function.
 /// Often the caller will need to cast their handle to *mut `c_void` to make it work.
-pub(crate) fn get_error(handle: *mut c_void,
+pub(crate) fn get_error(// crate) fn get_error(
+                        handle: *mut c_void,
                         handle_type: HandleType,
                         description: &str)
                         -> OciError {
