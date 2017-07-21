@@ -12,3 +12,4 @@ repository = "https://github.com/huwwynnjones/oci_rs"
 [dependencies]
 libc = "0.2.23"
 byteorder = "1.0.0"
+chrono = "0.4.0"

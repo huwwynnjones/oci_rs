@@ -516,12 +516,9 @@ fn define_output_parameter
      data_size: c_ushort,
      data_type: &OciDataType)
      -> Result<(*mut OCIDefine, Vec<u8>, *mut c_void, Box<c_short>, *mut c_short), OciError> {
-    /// # Errors
-    ///
-    /// Any error in the underlying calls to the OCI library will be returned.
-    ///
     let buffer_size = match *data_type {
-        OciDataType::SqlChar => data_size,
+        //OciDataType::SqlChar => data_size,
+        OciDataType::SqlChar => 1000,
         _ => data_type.size(),
     };
     let mut buffer = vec![0; buffer_size as usize];
@@ -591,7 +588,7 @@ fn determine_external_data_type(parameter: *mut OCIParam,
 
     let internal_data_type = column_internal_data_type(parameter, error)?;
     match internal_data_type {
-        OciDataType::SqlChar => Ok(OciDataType::SqlChar),
+        OciDataType::SqlChar | OciDataType::SqlDate  => Ok(OciDataType::SqlChar),
         OciDataType::SqlNum => {
             let precision = column_data_precision(parameter, error)?;
             let scale = column_data_scale(parameter, error)?;

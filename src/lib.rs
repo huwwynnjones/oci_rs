@@ -155,6 +155,7 @@
 
 extern crate libc;
 extern crate byteorder;
+extern crate chrono;
 
 /// Connections to a database.
 ///
@@ -461,6 +462,7 @@ mod oci_bindings;
 #[cfg(test)]
 mod tests {
     use connection::Connection;
+    use chrono::{Utc, TimeZone};
     const CONNECTION: &str = "localhost:1521/xe";
     const USER: &str = "oci_rs";
     const PASSWORD: &str = "test";
@@ -789,5 +791,74 @@ mod tests {
             assert_eq!(sweet_name, value.1);
             assert_eq!(sweet_price, value.2);
         }
+    }
+
+    /// Testing various data conversions
+    /// 
+    #[test]
+    fn conversions(){
+        let conn = match Connection::new(CONNECTION, USER, PASSWORD) {
+            Ok(conn) => conn,
+            Err(err) => panic!("Failed to create a connection: {}", err),
+        };
+        let sql_drop = "DROP TABLE Films";
+        let mut drop = match conn.create_prepared_statement(sql_drop) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("{}", err),
+        };
+        drop.execute().ok();
+        let sql_create = "CREATE TABLE Films(FilmId INTEGER, 
+                                             Name VARCHAR2(200),
+                                             Released DATE)"; 
+        let mut create = match conn.create_prepared_statement(sql_create) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("{}", err),
+        };
+        if let Err(err) = create.execute() {
+            panic!("Couldn't execute create Films: {}", err)
+        }
+
+        let sql_insert = "INSERT INTO Films(FilmId, Name, Released)
+                          VALUES(:id, :name, :released)";
+
+        let mut insert = match conn.create_prepared_statement(sql_insert){
+            Ok(stmt) => stmt,
+            Err(err) => panic!("Cannot create insert for Films: {}", err)
+        };
+
+        let id = 1;
+        let name = "Guardians of the Galaxy";
+        let released = Utc.ymd(2014, 7, 21);
+
+        if let Err(err) = insert.bind(&[&id, &name, &released]) {
+            panic!("Cannot bind for insert to Films: {}", err)
+        }
+
+        if let Err(err) = insert.execute() {
+            panic!("Couldn't execute insert into Films: {}", err)
+        }
+
+        let sql_select = "SELECT * FROM Films";
+
+        let mut select = match conn.create_prepared_statement(sql_select) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("Couldn't create select for Films: {}", err),
+        };
+
+        if let Err(err) = select.execute() {
+            panic!("Couldn't execute select for Films: {}", err)
+        }
+
+        let result_set = match select.result_set() {
+            Ok(res) => res,
+            Err(err) => panic!("{}", err),
+        };
+        if result_set.is_empty() {
+            panic!("Should not have an empty result")
+        }
+
+        let first_row = &result_set[0];
+
+        assert_eq!(first_row[2].value::<String>().unwrap(), released.format("%d-%b-%y").to_string())
     }
 }

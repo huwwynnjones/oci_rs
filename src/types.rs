@@ -2,6 +2,7 @@ use libc::{c_void, c_int};
 use oci_bindings::OciDataType;
 use oci_error::OciError;
 use byteorder::{ByteOrder, LittleEndian};
+use chrono::{Date, Utc, DateTime};
 
 /// The types that support conversion from OCI to Rust types.
 ///
@@ -17,6 +18,8 @@ pub enum SqlValue {
     Float(f64),
     /// Represents null values in columns.
     Null,
+    /// Represents a date
+    Date(String),
 }
 impl SqlValue {
     /// Returns the internal value converting on the way to whichever type implements
@@ -56,6 +59,7 @@ impl SqlValue {
             SqlValue::Integer(ref mut i) => (i as *mut i64) as *mut c_void,
             SqlValue::Float(ref mut f) => (f as *mut f64) as *mut c_void,
             SqlValue::Null => panic!("Null not handled"),
+            SqlValue::Date(ref s) => s.as_ptr() as *mut c_void,
         }
 
     }
@@ -70,17 +74,22 @@ impl SqlValue {
             SqlValue::Integer(..) |
             SqlValue::Float(..) => 8 as c_int,
             SqlValue::Null => panic!("Null not handled"),
+            SqlValue::Date(ref s) => s.capacity() as c_int,
         }
     }
 
     /// Converts to the relevant OCI internal type.
     ///
+    /// Date is converted into characters before sending into OCI
+    /// this avoids having to convert a rust date object into the Oracle
+    /// 7 byte date format.
     pub(crate) fn as_oci_data_type(&self) -> OciDataType {
         match *self {
             SqlValue::VarChar(..) => OciDataType::SqlChar,
             SqlValue::Integer(..) => OciDataType::SqlInt,
             SqlValue::Float(..) => OciDataType::SqlFloat,
             SqlValue::Null => panic!("Null not handled"),
+            SqlValue::Date(..) => OciDataType::SqlChar,
         }
     }
 
@@ -120,8 +129,8 @@ pub trait ToSqlValue {
 
 impl ToSqlValue for String {
     fn to_sql_value(&self) -> SqlValue {
-        let s = String::from(self.as_ref());
-        SqlValue::VarChar(s)
+        //let s = String::from(self.as_ref());
+        SqlValue::VarChar(self.clone())
     }
 }
 
@@ -141,6 +150,13 @@ impl ToSqlValue for i64 {
 impl ToSqlValue for f64 {
     fn to_sql_value(&self) -> SqlValue {
         SqlValue::Float(*self)
+    }
+}
+
+impl ToSqlValue for Date<Utc> {
+    fn to_sql_value(&self) -> SqlValue {
+        let date_string = self.format("%d-%b-%y").to_string();
+        SqlValue::Date(date_string)
     }
 }
 
@@ -171,6 +187,7 @@ impl FromSqlValue for String {
             SqlValue::Integer(i) => Some(format!("{}", i)),
             SqlValue::Float(f) => Some(format!("{}", f)),
             SqlValue::Null => Some("null".to_string()),
+            SqlValue::Date(ref s) => Some(s.to_string()),
         }
     }
 }
@@ -188,6 +205,22 @@ impl FromSqlValue for f64 {
     fn from_sql_value(sql_value: &SqlValue) -> Option<Self> {
         match *sql_value {
             SqlValue::Float(f) => Some(f),
+            _ => None,
+        }
+    }
+}
+
+impl FromSqlValue for Date<Utc> {
+    fn from_sql_value(sql_value: &SqlValue) -> Option<Self> {
+        match *sql_value {
+            SqlValue::Date(ref s) =>  {
+                 match s.parse::<DateTime<Utc>>() {
+                    Ok(dt) => Some(dt.date()),
+                    Err(err) => panic!("Could not parse the date returned from OCI as
+                                        a date. This should not happen, perhaps some localisation
+                                        configuration has gone wrong: {}", err),
+                }
+            },
             _ => None,
         }
     }
