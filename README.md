@@ -30,8 +30,8 @@ to Rust types.
 
 ### Missing type conversions
 
-Currently only `String`, `i64` and `f64` are supported. In Oracle terms this means that anything
-held in columns as `VARCHAR`, `VARCHAR2` and `Number` can be retrieved. As Oracle uses `Number` to
+Currently `String`, `i64`, `f64` and `Date<Utc>` are supported. In Oracle terms this means that anything
+held in columns as `VARCHAR`, `VARCHAR2`, `NUMBER` and `DATE` can be retrieved. As Oracle uses `NUMBER` to
 respresent all number types then this is less restricting that it first appears. More types
 will be added.
 
@@ -80,9 +80,6 @@ inherently unreliable.
 use oci_rs::connection::Connection;
 
 let conn = Connection::new("localhost:1521/xe", "oci_rs", "test").unwrap();
-
-# let mut drop = conn.create_prepared_statement("DROP TABLE Toys").unwrap();
-# drop.execute().ok();
 
 // Create a table
 let sql_create = "CREATE TABLE Toys (ToyId int,
