@@ -2,7 +2,7 @@ use libc::{c_void, c_int};
 use oci_bindings::OciDataType;
 use oci_error::OciError;
 use byteorder::{ByteOrder, LittleEndian};
-use chrono::{Date, Utc, DateTime};
+use chrono::{Date, Utc, DateTime, TimeZone};
 
 /// The types that support conversion from OCI to Rust types.
 ///
@@ -19,7 +19,7 @@ pub enum SqlValue {
     /// Represents null values in columns.
     Null,
     /// Represents a date
-    Date(String),
+    Date(Date<Utc>, String),
 }
 impl SqlValue {
     /// Returns the internal value converting on the way to whichever type implements
@@ -59,7 +59,7 @@ impl SqlValue {
             SqlValue::Integer(ref mut i) => (i as *mut i64) as *mut c_void,
             SqlValue::Float(ref mut f) => (f as *mut f64) as *mut c_void,
             SqlValue::Null => panic!("Null not handled"),
-            SqlValue::Date(ref s) => s.as_ptr() as *mut c_void,
+            SqlValue::Date(_, ref s) => s.as_ptr() as *mut c_void,
         }
 
     }
@@ -74,7 +74,7 @@ impl SqlValue {
             SqlValue::Integer(..) |
             SqlValue::Float(..) => 8 as c_int,
             SqlValue::Null => panic!("Null not handled"),
-            SqlValue::Date(ref s) => s.capacity() as c_int,
+            SqlValue::Date(_, ref s) => s.capacity() as c_int,
         }
     }
 
@@ -95,8 +95,7 @@ impl SqlValue {
 
     /// Create an `SqlValue` from a slice of bytes and indication of the data type
     ///
-    pub(crate) fn create_from_raw(// crate) fn create_from_raw(
-                                  data: &[u8],
+    pub(crate) fn create_from_raw(data: &[u8],
                                   sql_type: &OciDataType)
                                   -> Result<Self, OciError> {
         match *sql_type {
@@ -114,9 +113,17 @@ impl SqlValue {
                 let f = LittleEndian::read_f64(data);
                 Ok(SqlValue::Float(f as f64))
             }
+            OciDataType::SqlDate => {
+                let date = create_date_from_raw(data);
+                Ok(SqlValue::Date(date, date_in_oracle_format(&date)))
+            }
             _ => panic!("Not implemented yet"),
         }
     }
+}
+
+fn date_in_oracle_format(date: &Date<Utc>) -> String {
+    date.format("%d-%b-%y").to_string()
 }
 
 /// Allows conversion into a `SqlValue`.
@@ -155,8 +162,7 @@ impl ToSqlValue for f64 {
 
 impl ToSqlValue for Date<Utc> {
     fn to_sql_value(&self) -> SqlValue {
-        let date_string = self.format("%d-%b-%y").to_string();
-        SqlValue::Date(date_string)
+        SqlValue::Date(self.clone(), date_in_oracle_format(self)) 
     }
 }
 
@@ -187,7 +193,7 @@ impl FromSqlValue for String {
             SqlValue::Integer(i) => Some(format!("{}", i)),
             SqlValue::Float(f) => Some(format!("{}", f)),
             SqlValue::Null => Some("null".to_string()),
-            SqlValue::Date(ref s) => Some(s.to_string()),
+            SqlValue::Date(ref d, _) => Some(format!("{}", d)),
         }
     }
 }
@@ -213,15 +219,37 @@ impl FromSqlValue for f64 {
 impl FromSqlValue for Date<Utc> {
     fn from_sql_value(sql_value: &SqlValue) -> Option<Self> {
         match *sql_value {
-            SqlValue::Date(ref s) =>  {
-                 match s.parse::<DateTime<Utc>>() {
-                    Ok(dt) => Some(dt.date()),
-                    Err(err) => panic!("Could not parse the date returned from OCI as
-                                        a date. This should not happen, perhaps some localisation
-                                        configuration has gone wrong: {}", err),
-                }
-            },
+            SqlValue::Date(d, _) => Some(d),
             _ => None,
         }
     }
+}
+
+fn create_date_from_raw(data: &[u8]) -> Date<Utc> {
+    let century = convert_century(data[0]);
+    let year = convert_year(data[1]);
+    let month = convert_month(data[2]);
+    let day = convert_day(data[3]);
+
+    Utc.ymd((century + year), month, day)
+}
+
+fn convert_century(century_byte: u8) -> i32 {
+    let number = century_byte as i32;
+    (number - 100) * 100
+}
+
+fn convert_year(year_byte: u8) -> i32 {
+    let number = year_byte as i32;
+    number - 100
+}
+
+fn convert_month(month_byte: u8) -> u32 {
+    let number = month_byte as u32;
+    number
+}
+
+fn convert_day(day_byte: u8) -> u32 {
+    let number = day_byte as u32;
+    number
 }

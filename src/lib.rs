@@ -27,8 +27,8 @@
 //!
 //! ## Missing type conversions
 //!
-//! Currently only `String`, `i64` and `f64` are supported. In Oracle terms this means that anything
-//! held in columns as `VARCHAR`, `VARCHAR2` and `Number` can be retrieved. As Oracle uses `Number` to
+//! Currently `String`, `i64`, `f64` and `Date<Utc>` are supported. In Oracle terms this means that anything
+//! held in columns as `VARCHAR`, `VARCHAR2`, `NUMBER` and `DATE` can be retrieved. As Oracle uses `NUMBER` to
 //! respresent all number types then this is less restricting that it first appears. More types
 //! will be added.
 //!
@@ -462,7 +462,7 @@ mod oci_bindings;
 #[cfg(test)]
 mod tests {
     use connection::Connection;
-    use chrono::{Utc, TimeZone};
+    use chrono::{Utc, TimeZone, Date};
     const CONNECTION: &str = "localhost:1521/xe";
     const USER: &str = "oci_rs";
     const PASSWORD: &str = "test";
@@ -859,6 +859,10 @@ mod tests {
 
         let first_row = &result_set[0];
 
-        assert_eq!(first_row[2].value::<String>().unwrap(), released.format("%d-%b-%y").to_string())
+        let date: Date<Utc> = first_row[2].value().unwrap();
+        assert_eq!(date, released);
+
+        let date_as_string: String = first_row[2].value().unwrap();
+        assert_eq!(date_as_string, "dog".to_string());
     }
 }
