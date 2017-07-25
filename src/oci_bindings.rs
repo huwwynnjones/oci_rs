@@ -212,6 +212,8 @@ const SQLT_NUM: c_ushort = 2;
 const SQLT_INT: c_ushort = 3;
 const SQLT_FLT: c_ushort = 4;
 const SQLT_DAT: c_ushort = 12;
+const SQLT_TIMESTAMP: c_ushort = 187;
+const SQLT_TIMESTAMP_INTERNAL: c_ushort = 180;
 
 #[derive(Debug)]
 pub enum OciDataType {
@@ -219,7 +221,8 @@ pub enum OciDataType {
     SqlInt,
     SqlNum,
     SqlFloat,
-    SqlDate
+    SqlDate,
+    SqlTimestamp,
 }
 impl OciDataType {
     pub fn size(&self) -> c_ushort {
@@ -227,6 +230,7 @@ impl OciDataType {
             OciDataType::SqlChar => 4000,
             OciDataType::SqlInt | OciDataType::SqlNum | OciDataType::SqlFloat => 8,
             OciDataType::SqlDate => 7,
+            OciDataType::SqlTimestamp => 11,
         }
     }
 }
@@ -239,6 +243,7 @@ impl From<OciDataType> for c_ushort {
             OciDataType::SqlNum => SQLT_NUM,
             OciDataType::SqlFloat => SQLT_FLT,
             OciDataType::SqlDate => SQLT_DAT,
+            OciDataType::SqlTimestamp => SQLT_TIMESTAMP_INTERNAL,
         }
     }
 }
@@ -251,6 +256,7 @@ impl<'a> From<&'a OciDataType> for c_ushort {
             OciDataType::SqlNum => SQLT_NUM,
             OciDataType::SqlFloat => SQLT_FLT,
             OciDataType::SqlDate => SQLT_DAT,
+            OciDataType::SqlTimestamp => SQLT_TIMESTAMP_INTERNAL,
         }
     }
 }
@@ -262,6 +268,7 @@ impl From<c_ushort> for OciDataType {
             SQLT_NUM => OciDataType::SqlNum,
             SQLT_FLT => OciDataType::SqlFloat,
             SQLT_DAT => OciDataType::SqlDate,
+            SQLT_TIMESTAMP => OciDataType::SqlTimestamp,
             _ => {
                 panic!(format!("Found an unknown OciDataType code, {}, this should not happen",
                                number))

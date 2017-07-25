@@ -20,6 +20,8 @@ pub enum SqlValue {
     Null,
     /// Represents a date
     Date(Date<Utc>, String),
+    /// Represents a timestamp without time zone
+    Timestamp(DateTime<Utc>, String),
 }
 impl SqlValue {
     /// Returns the internal value converting on the way to whichever type implements
@@ -60,6 +62,7 @@ impl SqlValue {
             SqlValue::Float(ref mut f) => (f as *mut f64) as *mut c_void,
             SqlValue::Null => panic!("Null not handled"),
             SqlValue::Date(_, ref s) => s.as_ptr() as *mut c_void,
+            SqlValue::Timestamp(_, ref s) => s.as_ptr() as *mut c_void,
         }
 
     }
@@ -75,6 +78,7 @@ impl SqlValue {
             SqlValue::Float(..) => 8 as c_int,
             SqlValue::Null => panic!("Null not handled"),
             SqlValue::Date(_, ref s) => s.capacity() as c_int,
+            SqlValue::Timestamp(_, ref s) => s.capacity() as c_int,
         }
     }
 
@@ -89,7 +93,7 @@ impl SqlValue {
             SqlValue::Integer(..) => OciDataType::SqlInt,
             SqlValue::Float(..) => OciDataType::SqlFloat,
             SqlValue::Null => panic!("Null not handled"),
-            SqlValue::Date(..) => OciDataType::SqlChar,
+            SqlValue::Date(..) | SqlValue::Timestamp(..) => OciDataType::SqlChar,
         }
     }
 
@@ -114,8 +118,13 @@ impl SqlValue {
                 Ok(SqlValue::Float(f as f64))
             }
             OciDataType::SqlDate => {
-                let date = create_date_from_raw(data);
+                let datetime = create_datetime_from_raw(data);
+                let date = datetime.date();
                 Ok(SqlValue::Date(date, date_in_oracle_format(&date)))
+            }
+            OciDataType::SqlTimestamp => {
+                let datetime = create_datetime_from_raw(data);
+                Ok(SqlValue::Timestamp(datetime, datetime_in_oracle_format(&datetime)))
             }
             _ => panic!("Not implemented yet"),
         }
@@ -124,6 +133,10 @@ impl SqlValue {
 
 fn date_in_oracle_format(date: &Date<Utc>) -> String {
     date.format("%d-%b-%y").to_string()
+}
+
+fn datetime_in_oracle_format(date: &DateTime<Utc>) -> String {
+    date.format("%d-%b-%y %H.%M.%S.%f").to_string()
 }
 
 /// Allows conversion into a `SqlValue`.
@@ -136,7 +149,6 @@ pub trait ToSqlValue {
 
 impl ToSqlValue for String {
     fn to_sql_value(&self) -> SqlValue {
-        //let s = String::from(self.as_ref());
         SqlValue::VarChar(self.clone())
     }
 }
@@ -163,6 +175,12 @@ impl ToSqlValue for f64 {
 impl ToSqlValue for Date<Utc> {
     fn to_sql_value(&self) -> SqlValue {
         SqlValue::Date(self.clone(), date_in_oracle_format(self)) 
+    }
+}
+
+impl ToSqlValue for DateTime<Utc> {
+    fn to_sql_value(&self) -> SqlValue {
+        SqlValue::Timestamp(self.clone(), datetime_in_oracle_format(self)) 
     }
 }
 
@@ -194,6 +212,7 @@ impl FromSqlValue for String {
             SqlValue::Float(f) => Some(format!("{}", f)),
             SqlValue::Null => Some("null".to_string()),
             SqlValue::Date(ref d, _) => Some(format!("{}", d)),
+            SqlValue::Timestamp(ref d, _) => Some(format!("{}", d)),
         }
     }
 }
@@ -225,13 +244,25 @@ impl FromSqlValue for Date<Utc> {
     }
 }
 
-fn create_date_from_raw(data: &[u8]) -> Date<Utc> {
+impl FromSqlValue for DateTime<Utc> {
+    fn from_sql_value(sql_value: &SqlValue) -> Option<Self> {
+        match *sql_value {
+            SqlValue::Timestamp(d, _) => Some(d),
+            _ => None,
+        }
+    }
+}
+
+fn create_datetime_from_raw(data: &[u8]) -> DateTime<Utc> {
     let century = convert_century(data[0]);
     let year = convert_year(data[1]);
     let month = convert_month(data[2]);
     let day = convert_day(data[3]);
-
-    Utc.ymd((century + year), month, day)
+    let hour = convert_hour(data[4]);
+    let minute = convert_minute(data[5]);
+    let second = convert_second(data[6]);
+    println!("{},{},{},{},{},{},{}", century, year, month, day, hour, minute, second);
+    Utc.ymd((century + year), month, day).and_hms(hour, minute, second)
 }
 
 fn convert_century(century_byte: u8) -> i32 {
@@ -252,4 +283,19 @@ fn convert_month(month_byte: u8) -> u32 {
 fn convert_day(day_byte: u8) -> u32 {
     let number = day_byte as u32;
     number
+}
+
+fn convert_hour(hour_byte: u8) -> u32 {
+    let number = hour_byte as u32;
+    number - 1
+}
+
+fn convert_minute(minute_byte: u8) -> u32 {
+    let number = minute_byte as u32;
+    number - 1
+}
+
+fn convert_second(second_byte: u8) -> u32 {
+    let number = second_byte as u32;
+    number - 1
 }

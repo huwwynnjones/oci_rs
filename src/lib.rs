@@ -462,7 +462,7 @@ mod oci_bindings;
 #[cfg(test)]
 mod tests {
     use connection::Connection;
-    use chrono::{Utc, TimeZone, Date};
+    use chrono::{Utc, TimeZone, Date, DateTime};
     const CONNECTION: &str = "localhost:1521/xe";
     const USER: &str = "oci_rs";
     const PASSWORD: &str = "test";
@@ -809,7 +809,8 @@ mod tests {
         drop.execute().ok();
         let sql_create = "CREATE TABLE Films(FilmId INTEGER, 
                                              Name VARCHAR2(200),
-                                             Released DATE)"; 
+                                             Released DATE,
+                                             LastUpdate TIMESTAMP(9))";
         let mut create = match conn.create_prepared_statement(sql_create) {
             Ok(stmt) => stmt,
             Err(err) => panic!("{}", err),
@@ -818,8 +819,8 @@ mod tests {
             panic!("Couldn't execute create Films: {}", err)
         }
 
-        let sql_insert = "INSERT INTO Films(FilmId, Name, Released)
-                          VALUES(:id, :name, :released)";
+        let sql_insert = "INSERT INTO Films(FilmId, Name, Released, LastUpdate)
+                          VALUES(:id, :name, :released, :updated)";
 
         let mut insert = match conn.create_prepared_statement(sql_insert){
             Ok(stmt) => stmt,
@@ -829,8 +830,9 @@ mod tests {
         let id = 1;
         let name = "Guardians of the Galaxy";
         let released = Utc.ymd(2014, 7, 21);
+        let updated  = Utc::now();
 
-        if let Err(err) = insert.bind(&[&id, &name, &released]) {
+        if let Err(err) = insert.bind(&[&id, &name, &released, &updated]) {
             panic!("Cannot bind for insert to Films: {}", err)
         }
 
@@ -863,6 +865,12 @@ mod tests {
         assert_eq!(date, released);
 
         let date_as_string: String = first_row[2].value().unwrap();
-        assert_eq!(date_as_string, "dog".to_string());
+        assert_eq!(date_as_string, released.to_string());
+
+        let timestamp: DateTime<Utc> = first_row[3].value().unwrap();
+        assert_eq!(timestamp, updated);
+
+        let timestamp_as_string: String = first_row[3].value().unwrap();
+        assert_eq!(timestamp_as_string, updated.to_string())
     }
 }

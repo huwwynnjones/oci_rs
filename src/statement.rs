@@ -597,7 +597,7 @@ fn determine_external_data_type(parameter: *mut OCIParam,
                 Ok(OciDataType::SqlInt)
             }
         }
-        OciDataType::SqlDate => Ok(internal_data_type),
+        OciDataType::SqlDate | OciDataType::SqlTimestamp => Ok(internal_data_type),
         _ => panic!("Uknown external conversion"),
     }
 }
