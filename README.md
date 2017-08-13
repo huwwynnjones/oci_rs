@@ -30,7 +30,7 @@ In order to use `oci_rs` add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oci_rs = "0.3.2"
+oci_rs = "0.4.0"
 ```
 and this to your crate root:
 
