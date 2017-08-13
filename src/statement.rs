@@ -45,7 +45,7 @@ pub struct Statement<'conn> {
 impl<'conn> Statement<'conn> {
     /// Creates a new `Statement`.
     ///
-    pub(crate) fn new(// crate) fn new(
+    pub(crate) fn new(// crate) fn new(// crate) fn new(
                       connection: &'conn Connection,
                       sql: &str)
                       -> Result<Self, OciError> {
@@ -597,7 +597,8 @@ fn determine_external_data_type(parameter: *mut OCIParam,
                 Ok(OciDataType::SqlInt)
             }
         }
-        OciDataType::SqlDate | OciDataType::SqlTimestamp => Ok(internal_data_type),
+        OciDataType::SqlDate |
+        OciDataType::SqlTimestamp => Ok(internal_data_type),
         _ => panic!("Uknown external conversion"),
     }
 }

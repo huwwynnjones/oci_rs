@@ -4,36 +4,7 @@ oci_rs provides a Rust wrapper to the [Oracle Call Interface][1] (OCI) library.
 The Oracle site describes OCI as a "...comprehensive, high performance, native C
 language interface to Oracle Database for custom or packaged applications...".
 
-This readme is lifted from the [crate documentation][12].
-
-## Overview
-
-The OCI library is the original Oracle C API for interacting with their database. It is the one
-that later versions of JDBC is built on for example. Recently Oracle has released a new API
-called the [Oracle Database Programming Interface for Drivers and Applications][2] (ODPI-C)
-that is supposed to simplify use of OCI, however the documentation for OCI
-is more extensive and therefore easier to build a wrapper on top of.
-
-The OCI library is large and supports many use cases for interacting with a database. This
-crate is currently concerned with support for executing SQL statements and so is limited when
-compared to the whole of OCI.
-
-The overall design will be familiar to anyone who has used Java's JDBC, Haskell's HDBC or
-Rust's [postgres][3] crate. Indeed, most design decisions were
-made based on reviewing the API of these libraries.
-
-The basics are simple: a [`Connection`][4] represents a connection to a database, this connection
-can be used to prepare one or more [`Statement`][5]s which are then used to execute SQL against the
-database. If there are results then they can be returned all at once or lazily via an iterator.
-Datatypes are represented using [`SqlValue`][6] and allow type conversion from Oracle
-to Rust types.
-
-### Missing type conversions
-
-Currently `String`, `i64`, `f64` and `Date<Utc>` are supported. In Oracle terms this means that anything
-held in columns as `VARCHAR`, `VARCHAR2`, `NUMBER` and `DATE` can be retrieved. As Oracle uses `NUMBER` to
-respresent all number types then this is less restricting that it first appears. More types
-will be added.
+Documentation is available [here][12].
 
 ## Setup
 
@@ -59,7 +30,7 @@ In order to use `oci_rs` add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oci_rs = "0.3.0"
+oci_rs = "0.3.1"
 ```
 and this to your crate root:
 
@@ -134,11 +105,6 @@ assert_eq!(name, "Barbie");
 assert_eq!(price, 23.45);
 
 ```
-## OCI docs
-
-Documentation for the underlying OCI library can be found [here][10] and error codes and their
-descriptions [here][11]. The error descriptions are useful because they often contain
-additional information that is not included in the text returned from the library.
 
 [1]: http://www.oracle.com/technetwork/database/features/oci/index-090945.html
 [2]: https://github.com/oracle/odpi

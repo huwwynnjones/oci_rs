@@ -90,7 +90,7 @@ impl fmt::Display for ErrorRecord {
 /// Fetches the error records registered against the handle provided. If it is called
 /// out of sequence then the errors returned might be caused by a different function.
 /// Often the caller will need to cast their handle to *mut `c_void` to make it work.
-pub(crate) fn get_error(// crate) fn get_error(
+pub(crate) fn get_error(// crate) fn get_error(// crate) fn get_error(
                         handle: *mut c_void,
                         handle_type: HandleType,
                         description: &str)

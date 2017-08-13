@@ -260,6 +260,7 @@ impl<'a> From<&'a OciDataType> for c_ushort {
         }
     }
 }
+
 impl From<c_ushort> for OciDataType {
     fn from(number: c_ushort) -> Self {
         match number {
@@ -270,7 +271,7 @@ impl From<c_ushort> for OciDataType {
             SQLT_DAT => OciDataType::SqlDate,
             SQLT_TIMESTAMP => OciDataType::SqlTimestamp,
             _ => {
-                panic!(format!("Found an unknown OciDataType code, {}, this should not happen",
+                panic!(format!("Found an unknown OciDataType code, {}, this should not happen.",
                                number))
             }
         }
@@ -514,7 +515,6 @@ extern "C" {
                       errhp: *mut OCIError)
                       -> c_int;
 
-
     /// Creates and starts a user session.
     /// See [Oracle docs](https://docs.oracle.com/database/122/LNOCI/
     /// connect-authorize-and-initialize-functions.htm#GUID-31B1FDB3-056E-4AF9-9B89-8DA6AA156947)
@@ -637,7 +637,6 @@ extern "C" {
     pub fn OCIParamGet(hndlp: *const c_void,
                        htype: c_uint,
                        errhp: *mut OCIError,
-                       // parmdpp: &*mut c_void,
                        parmdpp: &*mut OCIParam,
                        pos: c_uint)
                        -> c_int;

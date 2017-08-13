@@ -27,10 +27,10 @@
 //!
 //! ## Missing type conversions
 //!
-//! Currently `String`, `i64`, `f64` and `Date<Utc>` are supported. In Oracle terms this means that anything
-//! held in columns as `VARCHAR`, `VARCHAR2`, `NUMBER` and `DATE` can be retrieved. As Oracle uses `NUMBER` to
-//! respresent all number types then this is less restricting that it first appears. More types
-//! will be added.
+//! Currently `String`, `i64`, `f64`, `Date<Utc>` and DateTime<Utc> are supported. In Oracle terms this 
+//! means that anything held in columns as `VARCHAR`, `VARCHAR2`, `NUMBER`, `DATE` and `TIMESTAMP` 
+//! can be retrieved. As Oracle uses `NUMBER` to respresent all number types then this is less restricting 
+//! that it first appears. More types will be added.
 //!
 //! # Setup
 //!
@@ -209,9 +209,9 @@ pub mod connection;
 /// let conn = Connection::new("localhost:1521/xe", "oci_rs", "test").unwrap();
 ///
 /// // Create a table
-/// let sql_create = "CREATE TABLE BrokenToys (ToyId int,
-///                                            Name varchar(20),
-///                                            Price sink)";
+/// let sql_create = "CREATE TABLE BrokenToys (ToyId INT,
+///                                            Name VARCHAR(20),
+///                                            Price SINK)";
 /// let mut create = conn.create_prepared_statement(sql_create).unwrap();
 /// if let Err(err) = create.execute() {
 ///     panic!("Execution failed: {}", err)
@@ -229,7 +229,7 @@ pub mod connection;
 /// ', <anon>:13
 /// note: Run with `RUST_BACKTRACE=1` for a backtrace.
 /// ```
-/// In this case "sink" is not a valid SQL data type.
+/// In this case "SINK" is not a valid SQL data type.
 ///
 /// Note that there might be more than one error and in such cases all errors will be listed, this
 /// is why there is an error number.
@@ -250,10 +250,10 @@ pub mod oci_error;
 /// of the columns when retrieving the values. To avoid this, this crate makes some executive
 /// decisions based on the `NUMBER` value. As per the OCI documentation the basic type of a number can be
 /// determined by the scale and precision of the `NUMBER` value. If the precision is non-zero and
-/// scale is -127 then the number is a `FLOAT` otherwise we can consider it an `INTEGER`. 
-/// So, according to this logic the caller will receive either `SqlValue::Integer` or `SqlValue::Float`. 
-/// These two variants contain an `i64` and `f64` respectively. If a smaller type is needed in Rust code, 
-/// then further conversions can be made. This appears to be sufficient to allow retrieval of data in 
+/// scale is -127 then the number is a `FLOAT` otherwise we can consider it an `INTEGER`.
+/// So, according to this logic the caller will receive either `SqlValue::Integer` or `SqlValue::Float`.
+/// These two variants contain an `i64` and `f64` respectively. If a smaller type is needed in Rust code,
+/// then further conversions can be made. This appears to be sufficient to allow retrieval of data in
 /// queries, without having specify column types on the Rust side ahead of time.
 ///
 /// Note: Oracle also supports types known as `BINARY_FLOAT` and `BINARY_DOUBLE`. These can also be
@@ -794,9 +794,9 @@ mod tests {
     }
 
     /// Testing various data conversions
-    /// 
+    ///
     #[test]
-    fn conversions(){
+    fn conversions() {
         let conn = match Connection::new(CONNECTION, USER, PASSWORD) {
             Ok(conn) => conn,
             Err(err) => panic!("Failed to create a connection: {}", err),
@@ -822,15 +822,15 @@ mod tests {
         let sql_insert = "INSERT INTO Films(FilmId, Name, Released, LastUpdate)
                           VALUES(:id, :name, :released, :updated)";
 
-        let mut insert = match conn.create_prepared_statement(sql_insert){
+        let mut insert = match conn.create_prepared_statement(sql_insert) {
             Ok(stmt) => stmt,
-            Err(err) => panic!("Cannot create insert for Films: {}", err)
+            Err(err) => panic!("Cannot create insert for Films: {}", err),
         };
 
         let id = 1;
         let name = "Guardians of the Galaxy";
         let released = Utc.ymd(2014, 7, 21);
-        let updated  = Utc::now();
+        let updated = Utc::now();
 
         if let Err(err) = insert.bind(&[&id, &name, &released, &updated]) {
             panic!("Cannot bind for insert to Films: {}", err)

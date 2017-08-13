@@ -1,7 +1,7 @@
 use libc::{c_void, c_int};
 use oci_bindings::OciDataType;
 use oci_error::OciError;
-use byteorder::{ByteOrder, LittleEndian};
+use byteorder::{ByteOrder, LittleEndian, BigEndian};
 use chrono::{Date, Utc, DateTime, TimeZone};
 
 /// The types that support conversion from OCI to Rust types.
@@ -42,10 +42,10 @@ impl SqlValue {
     ///
     /// assert_eq!(i, 42);
     /// assert_eq!(s, "42");
-    /// 
+    ///
     /// let null = SqlValue::Null;
     /// let null_as_i64: Option<i64> = null.value();
-    /// 
+    ///
     /// assert_eq!(null_as_i64, None);
     /// ```
     ///
@@ -93,13 +93,15 @@ impl SqlValue {
             SqlValue::Integer(..) => OciDataType::SqlInt,
             SqlValue::Float(..) => OciDataType::SqlFloat,
             SqlValue::Null => panic!("Null not handled"),
-            SqlValue::Date(..) | SqlValue::Timestamp(..) => OciDataType::SqlChar,
+            SqlValue::Date(..) |
+            SqlValue::Timestamp(..) => OciDataType::SqlChar,
         }
     }
 
     /// Create an `SqlValue` from a slice of bytes and indication of the data type
     ///
-    pub(crate) fn create_from_raw(data: &[u8],
+    pub(crate) fn create_from_raw(// crate) fn create_from_raw(
+                                  data: &[u8],
                                   sql_type: &OciDataType)
                                   -> Result<Self, OciError> {
         match *sql_type {
@@ -174,13 +176,13 @@ impl ToSqlValue for f64 {
 
 impl ToSqlValue for Date<Utc> {
     fn to_sql_value(&self) -> SqlValue {
-        SqlValue::Date(self.clone(), date_in_oracle_format(self)) 
+        SqlValue::Date(self.clone(), date_in_oracle_format(self))
     }
 }
 
 impl ToSqlValue for DateTime<Utc> {
     fn to_sql_value(&self) -> SqlValue {
-        SqlValue::Timestamp(self.clone(), datetime_in_oracle_format(self)) 
+        SqlValue::Timestamp(self.clone(), datetime_in_oracle_format(self))
     }
 }
 
@@ -261,8 +263,12 @@ fn create_datetime_from_raw(data: &[u8]) -> DateTime<Utc> {
     let hour = convert_hour(data[4]);
     let minute = convert_minute(data[5]);
     let second = convert_second(data[6]);
-    println!("{},{},{},{},{},{},{}", century, year, month, day, hour, minute, second);
-    Utc.ymd((century + year), month, day).and_hms(hour, minute, second)
+    if data.len() <= 7 {
+        Utc.ymd((century + year), month, day).and_hms(hour, minute, second)
+    } else {
+        let nano = convert_nano(&data[7..11]);
+        Utc.ymd((century + year), month, day).and_hms_nano(hour, minute, second, nano)
+    }
 }
 
 fn convert_century(century_byte: u8) -> i32 {
@@ -298,4 +304,9 @@ fn convert_minute(minute_byte: u8) -> u32 {
 fn convert_second(second_byte: u8) -> u32 {
     let number = second_byte as u32;
     number - 1
+}
+
+fn convert_nano(nano_bytes: &[u8]) -> u32 {
+    let number = BigEndian::read_u32(nano_bytes);
+    number
 }
