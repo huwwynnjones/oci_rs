@@ -27,8 +27,9 @@
 //!
 //! ## Missing type conversions
 //!
-//! Currently `String`, `i64`, `f64`, `Date<Utc>` and DateTime<Utc> are supported. In Oracle terms this 
-//! means that anything held in columns as `VARCHAR`, `VARCHAR2`, `NUMBER`, `DATE` and `TIMESTAMP` 
+//! Currently `String`, `i64`, `f64`, `Date<Utc>`, `DateTime<Utc>` and `DateTime<FixedOffset> 
+//! are supported. In Oracle terms this means that anything held in columns as `VARCHAR`, `VARCHAR2`, 
+//! `NUMBER`, `DATE`, `TIMESTAMP` and `TIMESTAMP WITH TIME ZONE`
 //! can be retrieved. As Oracle uses `NUMBER` to respresent all number types then this is less restricting 
 //! that it first appears. More types will be added.
 //!
@@ -462,7 +463,7 @@ mod oci_bindings;
 #[cfg(test)]
 mod tests {
     use connection::Connection;
-    use chrono::{Utc, TimeZone, Date, DateTime};
+    use chrono::{Utc, TimeZone, Date, DateTime, FixedOffset};
     const CONNECTION: &str = "localhost:1521/xe";
     const USER: &str = "oci_rs";
     const PASSWORD: &str = "test";
@@ -810,7 +811,8 @@ mod tests {
         let sql_create = "CREATE TABLE Films(FilmId INTEGER, 
                                              Name VARCHAR2(200),
                                              Released DATE,
-                                             LastUpdate TIMESTAMP(9))";
+                                             LastUpdate TIMESTAMP(9),
+                                             LastViewed TIMESTAMP(9) WITH TIME ZONE)";
         let mut create = match conn.create_prepared_statement(sql_create) {
             Ok(stmt) => stmt,
             Err(err) => panic!("{}", err),
@@ -819,8 +821,8 @@ mod tests {
             panic!("Couldn't execute create Films: {}", err)
         }
 
-        let sql_insert = "INSERT INTO Films(FilmId, Name, Released, LastUpdate)
-                          VALUES(:id, :name, :released, :updated)";
+        let sql_insert = "INSERT INTO Films(FilmId, Name, Released, LastUpdate, LastViewed)
+                          VALUES(:id, :name, :released, :updated, :viewed)";
 
         let mut insert = match conn.create_prepared_statement(sql_insert) {
             Ok(stmt) => stmt,
@@ -831,8 +833,9 @@ mod tests {
         let name = "Guardians of the Galaxy";
         let released = Utc.ymd(2014, 7, 21);
         let updated = Utc::now();
+        let viewed = updated.with_timezone(&FixedOffset::east(10 * 3600));
 
-        if let Err(err) = insert.bind(&[&id, &name, &released, &updated]) {
+        if let Err(err) = insert.bind(&[&id, &name, &released, &updated, &viewed]) {
             panic!("Cannot bind for insert to Films: {}", err)
         }
 
@@ -871,6 +874,9 @@ mod tests {
         assert_eq!(timestamp, updated);
 
         let timestamp_as_string: String = first_row[3].value().unwrap();
-        assert_eq!(timestamp_as_string, updated.to_string())
+        assert_eq!(timestamp_as_string, updated.to_string());
+
+        let timestamp_tz: DateTime<FixedOffset> = first_row[4].value().unwrap();
+        assert_eq!(timestamp_tz, viewed);
     }
 }

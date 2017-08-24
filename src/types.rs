@@ -2,7 +2,7 @@ use libc::{c_void, c_int};
 use oci_bindings::OciDataType;
 use oci_error::OciError;
 use byteorder::{ByteOrder, LittleEndian, BigEndian};
-use chrono::{Date, Utc, DateTime, TimeZone};
+use chrono::{Date, Utc, DateTime, TimeZone, FixedOffset};
 
 /// The types that support conversion from OCI to Rust types.
 ///
@@ -22,6 +22,8 @@ pub enum SqlValue {
     Date(Date<Utc>, String),
     /// Represents a timestamp without time zone
     Timestamp(DateTime<Utc>, String),
+    /// Represents a timestamp with a time zone
+    TimestampTz(DateTime<FixedOffset>, String)
 }
 impl SqlValue {
     /// Returns the internal value converting on the way to whichever type implements
@@ -63,6 +65,7 @@ impl SqlValue {
             SqlValue::Null => panic!("Null not handled"),
             SqlValue::Date(_, ref s) => s.as_ptr() as *mut c_void,
             SqlValue::Timestamp(_, ref s) => s.as_ptr() as *mut c_void,
+            SqlValue::TimestampTz(_, ref s) => s.as_ptr() as *mut c_void,
         }
 
     }
@@ -79,6 +82,7 @@ impl SqlValue {
             SqlValue::Null => panic!("Null not handled"),
             SqlValue::Date(_, ref s) => s.capacity() as c_int,
             SqlValue::Timestamp(_, ref s) => s.capacity() as c_int,
+            SqlValue::TimestampTz(_, ref s) => s.capacity() as c_int,
         }
     }
 
@@ -86,7 +90,8 @@ impl SqlValue {
     ///
     /// Date is converted into characters before sending into OCI
     /// this avoids having to convert a rust date object into the Oracle
-    /// 7 byte date format.
+    /// seven byte date format.
+    ///
     pub(crate) fn as_oci_data_type(&self) -> OciDataType {
         match *self {
             SqlValue::VarChar(..) => OciDataType::SqlChar,
@@ -94,14 +99,13 @@ impl SqlValue {
             SqlValue::Float(..) => OciDataType::SqlFloat,
             SqlValue::Null => panic!("Null not handled"),
             SqlValue::Date(..) |
-            SqlValue::Timestamp(..) => OciDataType::SqlChar,
+            SqlValue::Timestamp(..) | SqlValue::TimestampTz(..) => OciDataType::SqlChar,
         }
     }
 
     /// Create an `SqlValue` from a slice of bytes and indication of the data type
     ///
-    pub(crate) fn create_from_raw(// crate) fn create_from_raw(
-                                  data: &[u8],
+    pub(crate) fn create_from_raw(data: &[u8],
                                   sql_type: &OciDataType)
                                   -> Result<Self, OciError> {
         match *sql_type {
@@ -128,17 +132,38 @@ impl SqlValue {
                 let datetime = create_datetime_from_raw(data);
                 Ok(SqlValue::Timestamp(datetime, datetime_in_oracle_format(&datetime)))
             }
+            OciDataType::SqlTimestampTz => {
+                let datetime_tz = create_datetime_with_timezone_from_raw(data);
+                Ok(SqlValue::TimestampTz(datetime_tz, datetime_with_timezone_in_oracle_format(&datetime_tz)))
+            }
             _ => panic!("Not implemented yet"),
         }
     }
 }
 
+/// Creates a string form of a `Date` that Oracle will understand.
+///
+/// For example 21-May-17
+/// It might be better to create the Oracle byte format directly.
+/// 
 fn date_in_oracle_format(date: &Date<Utc>) -> String {
     date.format("%d-%b-%y").to_string()
 }
 
+/// Creates a string form of a `DateTime` that Oracle will understand.
+///
+/// For example 21-May-17 18.35.59.123456789
+///
 fn datetime_in_oracle_format(date: &DateTime<Utc>) -> String {
     date.format("%d-%b-%y %H.%M.%S.%f").to_string()
+}
+
+/// Creates a string form of a `DateTime<FixedOffset>` that Oracle will understand.
+///
+/// For example 21-May-17 18.35.59.123456789
+///
+fn datetime_with_timezone_in_oracle_format(date: &DateTime<FixedOffset>) -> String {
+    date.format("%d-%b-%y %H.%M.%S.%f %:z").to_string()
 }
 
 /// Allows conversion into a `SqlValue`.
@@ -186,10 +211,16 @@ impl ToSqlValue for DateTime<Utc> {
     }
 }
 
+impl ToSqlValue for DateTime<FixedOffset> {
+    fn to_sql_value(&self) -> SqlValue {
+        SqlValue::TimestampTz(self.clone(), datetime_with_timezone_in_oracle_format(self))
+    }
+}
+
 /// Allows conversion from a `SqlValue`.
 ///
 pub trait FromSqlValue {
-    /// Converts from a `SqlValue`.
+    /// Allows conversion from a `SqlValue`.
     ///
     /// It allows for impossible conversions though the use of `Option`.
     /// e.g. an `SqlValue::Null` cannot be converted into a i64.
@@ -203,9 +234,9 @@ pub trait FromSqlValue {
 impl FromSqlValue for String {
     // Converts from a `SqlValue` into a `String`
     //
-    // Worth noting that this is intend to convert all types into a
+    // Worth noting that this is intended to convert all types into a
     // `String` representation of the value. It also does this for
-    // `SqlValue::Null` for which is returns "null". That might prove a bad idea.
+    // `SqlValue::Null` for which it returns "null". That might prove a bad idea.
     //
     fn from_sql_value(sql_value: &SqlValue) -> Option<Self> {
         match *sql_value {
@@ -215,6 +246,7 @@ impl FromSqlValue for String {
             SqlValue::Null => Some("null".to_string()),
             SqlValue::Date(ref d, _) => Some(format!("{}", d)),
             SqlValue::Timestamp(ref d, _) => Some(format!("{}", d)),
+            SqlValue::TimestampTz(ref d, _) => Some(format!("{}", d)),
         }
     }
 }
@@ -255,6 +287,19 @@ impl FromSqlValue for DateTime<Utc> {
     }
 }
 
+impl FromSqlValue for DateTime<FixedOffset> {
+    fn from_sql_value(sql_value: &SqlValue) -> Option<Self> {
+        match *sql_value {
+            SqlValue::TimestampTz(d, _) => Some(d),
+            _ => None,
+        }
+    }
+}
+
+/// Creates a `DateTime<Utc>` from the Oracle format.
+///
+/// Oracle uses seven bytes for a date, and eleven bytes for a timestamp.
+///
 fn create_datetime_from_raw(data: &[u8]) -> DateTime<Utc> {
     let century = convert_century(data[0]);
     let year = convert_year(data[1]);
@@ -270,6 +315,20 @@ fn create_datetime_from_raw(data: &[u8]) -> DateTime<Utc> {
         Utc.ymd((century + year), month, day).and_hms_nano(hour, minute, second, nano)
     }
 }
+
+/// Creates a `DateTime<FixedOffset>` from the Oracle format.
+///
+/// Oracle uses thirteen bytes for a timestamp with timezone.
+///
+fn create_datetime_with_timezone_from_raw(data: &[u8]) -> DateTime<FixedOffset> {
+    let timezone_hour = convert_timezone_hour(data[11]);
+    let timezone_minutes = convert_timezone_minutes(data[12]);
+    let hour_in_secs = timezone_hour * 3600;
+    let minutes_in_secs = timezone_minutes * 3600;
+    let utc_dt = create_datetime_from_raw(data);
+    utc_dt.with_timezone(&FixedOffset::east(hour_in_secs + minutes_in_secs))
+}
+
 
 fn convert_century(century_byte: u8) -> i32 {
     let number = century_byte as i32;
@@ -309,4 +368,18 @@ fn convert_second(second_byte: u8) -> u32 {
 fn convert_nano(nano_bytes: &[u8]) -> u32 {
     let number = BigEndian::read_u32(nano_bytes);
     number
+}
+
+/// Converts a byte into a timezone hour, as per the Oracle `Timestamp with time zone` format.
+///
+fn convert_timezone_hour(timezone_hour_byte: u8) -> i32 {
+    let number = timezone_hour_byte as i32;
+    number - 20
+}
+
+/// Converts a byte into timezone minutes, as per the Oracle `Timestamp with time zone` format.
+///
+fn convert_timezone_minutes(timezone_minutes_byte: u8) -> i32 {
+    let number = timezone_minutes_byte as i32;
+    number - 60
 }
