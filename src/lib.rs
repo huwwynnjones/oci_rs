@@ -5,8 +5,8 @@
 //!
 //! # Overview
 //!
-//! The OCI library is the original Oracle C API for interacting with their database. It is the one
-//! that later versions of JDBC is built on for example. Recently Oracle has released a new API
+//! The OCI library is the original Oracle C API for interacting with their database.
+//! It is one of the driver options available in JDBC. Recently Oracle released a new API
 //! called the [Oracle Database Programming Interface for Drivers and Applications][2] (ODPI-C)
 //! that is supposed to simplify use of OCI, however the documentation for OCI
 //! is more extensive and therefore easier to build a wrapper on top of.
@@ -16,8 +16,8 @@
 //! compared to the whole of OCI.
 //!
 //! The overall design will be familiar to anyone who has used Java's JDBC, Haskell's HDBC or
-//! Rust's [postgres][3] crate. Indeed, most design decisions were
-//! made based on reviewing the API of these libraries.
+//! Rust's [postgres][3] crate. Indeed, most design decisions were made based on reviewing the API 
+//! of these libraries.
 //!
 //! The basics are simple: a [`Connection`][4] represents a connection to a database, this connection
 //! can be used to prepare one or more [`Statement`][5]s which are then used to execute SQL against the
@@ -26,13 +26,22 @@
 //! to Rust types.
 //!
 //! ## Missing type conversions
+//! 
+//! The following conversions are supported to/from Oracle SQL types to Rust types.
+//! As Oracle uses `NUMBER` to represent all number types then all integer and floating point
+//! types convert to it. Smaller integers or floats needed on the Rust side can be downcast.  
+//! 
+//! | Oracle SQL type          | Rust type               |
+//! |--------------------------|-------------------------|
+//! | VARCHAR                  | `String`                |
+//! | VARCHAR2                 | `String`                |
+//! | NUMBER                   | `i64`, `f64`            |
+//! | DATE                     | `Date<Utc>`             |
+//! | TIMESTAMP                | `DateTime<Utc>`         |
+//! | TIMESTAMP WITH TIME ZONE | `DateTime<FixedOffset>` |
 //!
-//! Currently `String`, `i64`, `f64`, `Date<Utc>`, `DateTime<Utc>` and `DateTime<FixedOffset> 
-//! are supported. In Oracle terms this means that anything held in columns as `VARCHAR`, `VARCHAR2`, 
-//! `NUMBER`, `DATE`, `TIMESTAMP` and `TIMESTAMP WITH TIME ZONE`
-//! can be retrieved. As Oracle uses `NUMBER` to respresent all number types then this is less restricting 
-//! that it first appears. More types will be added.
-//!
+//! Over time more types will be added.
+//! 
 //! # Setup
 //!
 //! This crate is developed against version 12.2 of the OCI library. It is expected to work with
@@ -263,15 +272,26 @@ pub mod oci_error;
 ///
 /// The traits allow conversion to and from Rust types into `SqlValue`.
 ///
+/// ## Type conversions
+/// 
+/// | Oracle SQL type          | Rust type               |
+/// |--------------------------|-------------------------|
+/// | VARCHAR                  | `String`                |
+/// | VARCHAR2                 | `String`                |
+/// | NUMBER                   | `i64`, `f64`            |
+/// | DATE                     | `Date<Utc>`             |
+/// | TIMESTAMP                | `DateTime<Utc>`         |
+/// | TIMESTAMP WITH TIME ZONE | `DateTime<FixedOffset>` |
+/// 
 /// # Examples
 ///
 /// This example highlights the automatic conversion. If it is confusing then I suggest reading
 /// [Communicating Intent][1] as it explains very well how Rust's trait system makes this work,
 /// the [`postgres`][2] crate also makes use of the same process to
-/// convert the column values in a result row into Rust. This crate copies `postgres`'s approach except that it
-/// makes use of an intermediary `SqlValue` instead of returning a trait. I think that it is fair
-/// to argue that `SqlValue` is not needed, `postgres` skips such an intermediary value, but using
-/// it simplifies the current implementation.
+/// convert the column values in a result row into Rust. This crate copies `postgres`'s approach 
+/// except that it makes use of an intermediary `SqlValue` instead of returning a trait. I think
+/// that it is fair to argue that `SqlValue` is not needed, `postgres` skips such an intermediary
+/// value, but using it simplifies the current implementation.
 ///
 /// ```rust
 /// use oci_rs::connection::Connection;
