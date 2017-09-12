@@ -23,7 +23,8 @@ enum ResultState {
 /// long as its parent `Connection` and when it goes out of scope the underlying resources
 /// will be released via a `Drop` implementation.
 ///
-/// A `Statement` is stateful. Binding parameters and retrieving the result set will update the state
+/// A `Statement` is stateful. Binding parameters and retrieving the result set will update the
+/// state
 /// of the object. The underlying OCI objects are stateful and re-use of an OCI statement for new
 /// binding parameters or diferent results is more efficient than allocating resources for a new
 /// statement. At the moment changing the SQL requires a new `Statement` but it might prove useful
@@ -45,7 +46,7 @@ pub struct Statement<'conn> {
 impl<'conn> Statement<'conn> {
     /// Creates a new `Statement`.
     ///
-    pub(crate) fn new(// crate) fn new(// crate) fn new(
+    pub(crate) fn new(// crate) fn new(
                       connection: &'conn Connection,
                       sql: &str)
                       -> Result<Self, OciError> {
@@ -238,8 +239,8 @@ impl<'conn> Statement<'conn> {
     /// Returns the results of a `SELECT` statement row by row via the `RowIter` iterator.
     ///
     /// The `RowIter` returned can then be used to run through the rows of data in the result set.
-    /// This is a more attractive option if there are many rows or you want to process the results in
-    /// a pipeline.
+    /// This is a more attractive option if there are many rows or you want to process the results
+    /// in a pipeline.
     ///
     /// The same comments about pre-fetching configuration applies here as to `.result_set`.
     ///
@@ -517,7 +518,7 @@ fn define_output_parameter
      data_type: &OciDataType)
      -> Result<(*mut OCIDefine, Vec<u8>, *mut c_void, Box<c_short>, *mut c_short), OciError> {
     let buffer_size = match *data_type {
-        OciDataType::SqlChar => data_size,
+        OciDataType::SqlVarChar | OciDataType::SqlChar => data_size,
         _ => data_type.size(),
     };
     let mut buffer = vec![0; buffer_size as usize];
@@ -587,7 +588,7 @@ fn determine_external_data_type(parameter: *mut OCIParam,
 
     let internal_data_type = column_internal_data_type(parameter, error)?;
     match internal_data_type {
-        OciDataType::SqlChar => Ok(OciDataType::SqlChar),
+        OciDataType::SqlVarChar => Ok(OciDataType::SqlVarChar),
         OciDataType::SqlNum => {
             let precision = column_data_precision(parameter, error)?;
             let scale = column_data_scale(parameter, error)?;
@@ -597,9 +598,11 @@ fn determine_external_data_type(parameter: *mut OCIParam,
                 Ok(OciDataType::SqlInt)
             }
         }
+        OciDataType::SqlChar => Ok(OciDataType::SqlChar),
         OciDataType::SqlDate |
-        OciDataType::SqlTimestamp | OciDataType::SqlTimestampTz => Ok(internal_data_type),
-        _ => panic!("Uknown external conversion"),
+        OciDataType::SqlTimestamp |
+        OciDataType::SqlTimestampTz => Ok(internal_data_type),
+        _ => panic!("Uknown external conversion."),
     }
 }
 

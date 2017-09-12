@@ -16,37 +16,39 @@
 //! compared to the whole of OCI.
 //!
 //! The overall design will be familiar to anyone who has used Java's JDBC, Haskell's HDBC or
-//! Rust's [postgres][3] crate. Indeed, most design decisions were made based on reviewing the API 
+//! Rust's [postgres][3] crate. Indeed, most design decisions were made based on reviewing the API
 //! of these libraries.
 //!
-//! The basics are simple: a [`Connection`][4] represents a connection to a database, this connection
-//! can be used to prepare one or more [`Statement`][5]s which are then used to execute SQL against the
-//! database. If there are results then they can be returned all at once or lazily via an iterator.
+//! The basics are simple: a [`Connection`][4] represents a connection to a database, this
+//! connection can be used to prepare one or more [`Statement`][5]s which are then used to
+//! execute SQL against the database. If there are results then they can be returned all at
+//! once or lazily via an iterator.
 //! Datatypes are represented using [`SqlValue`][6] and allow type conversion from Oracle
 //! to Rust types.
 //!
 //! ## Missing type conversions
-//! 
+//!
 //! The following conversions are supported to/from Oracle SQL types to Rust types.
 //! As Oracle uses `NUMBER` to represent all number types then all integer and floating point
-//! types convert to it. Smaller integers or floats needed on the Rust side can be downcast.  
-//! 
+//! types convert to it. Smaller integers or floats needed on the Rust side can be downcast.
+//!
 //! | Oracle SQL type          | Rust type               |
 //! |--------------------------|-------------------------|
 //! | VARCHAR                  | `String`                |
 //! | VARCHAR2                 | `String`                |
+//! | CHAR                     | `String`                |
 //! | NUMBER                   | `i64`, `f64`            |
 //! | DATE                     | `Date<Utc>`             |
 //! | TIMESTAMP                | `DateTime<Utc>`         |
 //! | TIMESTAMP WITH TIME ZONE | `DateTime<FixedOffset>` |
 //!
 //! Over time more types will be added.
-//! 
+//!
 //! # Setup
 //!
 //! This crate is developed against version 12.2 of the OCI library. It is expected to work with
-//! 12.x.x but is not tested. The OCI client library needs to be installed on your machine and can be
-//! downloaded [here][7].
+//! 12.x.x but is not tested. The OCI client library needs to be installed on your machine and
+//! can be downloaded [here][7].
 //!
 //! If you are on Linux then you are likely to need to tell the linker where
 //! to find the files. Adding this to my `.bashrc` file worked for me, however the details may vary
@@ -80,7 +82,8 @@
 //! insert a couple of rows using bind variables and then execute a query to fetch them back again.
 //! There is a lot of error handling needed. Every OCI function call can fail and so `Result` and
 //! `Option` are used extensively. The below code takes the usual documentation shortcut of calling
-//! `unwrap()` a lot but doing so in real client code will prove ill-fated. Any remote database connection is
+//! `unwrap()` a lot but doing so in real client code will prove ill-fated. Any remote database
+//! connection is
 //! inherently unreliable.
 //!
 //! ```rust
@@ -158,7 +161,8 @@
 //! [6]: types/enum.SqlValue.html
 //! [7]: http://www.oracle.com/technetwork/database/features/instant-client/index-097480.html
 //! [8]: https://www.opensuse.org/
-//! [9]: http://www.oracle.com/technetwork/database/database-technologies/express-edition/overview/index.html
+//! [9]: http://www.oracle.com/technetwork/database/database-technologies/express-edition/
+//! overview/index.html
 //! [10]: http://docs.oracle.com/database/122/LNOCI/toc.htm
 //! [11]: https://docs.oracle.com/database/122/ERRMG/toc.htm
 //!
@@ -255,15 +259,20 @@ pub mod oci_error;
 /// For number types in particular there are less `SqlValue`s than SQL types. Inside Oracle all
 /// numbers are stored as a `NUMBER`. This is an Oracle format that can handle all integer and
 /// float values with a precision of 38 digits. Regardless of whether the SQL statement specifies
-/// an `INTEGER` or `FLOAT` or `LONG`, Oracle will store it as a `NUMBER`. The OCI library then allows you
+/// an `INTEGER` or `FLOAT` or `LONG`, Oracle will store it as a `NUMBER`. The OCI library then
+/// allows you
 /// to convert it into any numeric type you like, but that forces you to explicitly state the type
 /// of the columns when retrieving the values. To avoid this, this crate makes some executive
-/// decisions based on the `NUMBER` value. As per the OCI documentation the basic type of a number can be
+/// decisions based on the `NUMBER` value. As per the OCI documentation the basic type of a number
+/// can be
 /// determined by the scale and precision of the `NUMBER` value. If the precision is non-zero and
 /// scale is -127 then the number is a `FLOAT` otherwise we can consider it an `INTEGER`.
-/// So, according to this logic the caller will receive either `SqlValue::Integer` or `SqlValue::Float`.
-/// These two variants contain an `i64` and `f64` respectively. If a smaller type is needed in Rust code,
-/// then further conversions can be made. This appears to be sufficient to allow retrieval of data in
+/// So, according to this logic the caller will receive either `SqlValue::Integer` or
+/// `SqlValue::Float`.
+/// These two variants contain an `i64` and `f64` respectively. If a smaller type is needed in
+/// Rust code,
+/// then further conversions can be made. This appears to be sufficient to allow retrieval of data
+/// in
 /// queries, without having specify column types on the Rust side ahead of time.
 ///
 /// Note: Oracle also supports types known as `BINARY_FLOAT` and `BINARY_DOUBLE`. These can also be
@@ -273,7 +282,7 @@ pub mod oci_error;
 /// The traits allow conversion to and from Rust types into `SqlValue`.
 ///
 /// ## Type conversions
-/// 
+///
 /// | Oracle SQL type          | Rust type               |
 /// |--------------------------|-------------------------|
 /// | VARCHAR                  | `String`                |
@@ -282,13 +291,13 @@ pub mod oci_error;
 /// | DATE                     | `Date<Utc>`             |
 /// | TIMESTAMP                | `DateTime<Utc>`         |
 /// | TIMESTAMP WITH TIME ZONE | `DateTime<FixedOffset>` |
-/// 
+///
 /// # Examples
 ///
 /// This example highlights the automatic conversion. If it is confusing then I suggest reading
 /// [Communicating Intent][1] as it explains very well how Rust's trait system makes this work,
 /// the [`postgres`][2] crate also makes use of the same process to
-/// convert the column values in a result row into Rust. This crate copies `postgres`'s approach 
+/// convert the column values in a result row into Rust. This crate copies `postgres`'s approach
 /// except that it makes use of an intermediary `SqlValue` instead of returning a trait. I think
 /// that it is fair to argue that `SqlValue` is not needed, `postgres` skips such an intermediary
 /// value, but using it simplifies the current implementation.
@@ -828,8 +837,9 @@ mod tests {
             Err(err) => panic!("{}", err),
         };
         drop.execute().ok();
-        let sql_create = "CREATE TABLE Films(FilmId INTEGER, 
+        let sql_create = "CREATE TABLE Films(FilmId INTEGER,
                                              Name VARCHAR2(200),
+                                             Genre CHAR(10),
                                              Released DATE,
                                              LastUpdate TIMESTAMP(9),
                                              LastViewed TIMESTAMP(9) WITH TIME ZONE)";
@@ -841,8 +851,8 @@ mod tests {
             panic!("Couldn't execute create Films: {}", err)
         }
 
-        let sql_insert = "INSERT INTO Films(FilmId, Name, Released, LastUpdate, LastViewed)
-                          VALUES(:id, :name, :released, :updated, :viewed)";
+        let sql_insert = "INSERT INTO Films(FilmId, Name, Genre, Released, LastUpdate, LastViewed)
+                          VALUES(:id, :name, :genre, :released, :updated, :viewed)";
 
         let mut insert = match conn.create_prepared_statement(sql_insert) {
             Ok(stmt) => stmt,
@@ -851,11 +861,12 @@ mod tests {
 
         let id = 1;
         let name = "Guardians of the Galaxy";
+        let genre = "Sci-fi    ";
         let released = Utc.ymd(2014, 7, 21);
         let updated = Utc::now();
         let viewed = updated.with_timezone(&FixedOffset::east(10 * 3600));
 
-        if let Err(err) = insert.bind(&[&id, &name, &released, &updated, &viewed]) {
+        if let Err(err) = insert.bind(&[&id, &name, &genre, &released, &updated, &viewed]) {
             panic!("Cannot bind for insert to Films: {}", err)
         }
 
@@ -884,19 +895,25 @@ mod tests {
 
         let first_row = &result_set[0];
 
-        let date: Date<Utc> = first_row[2].value().unwrap();
+        let genre_char: String = first_row[2].value().unwrap();
+        assert_eq!(genre_char, genre);
+
+        let date: Date<Utc> = first_row[3].value().unwrap();
         assert_eq!(date, released);
 
-        let date_as_string: String = first_row[2].value().unwrap();
+        let date_as_string: String = first_row[3].value().unwrap();
         assert_eq!(date_as_string, released.to_string());
 
-        let timestamp: DateTime<Utc> = first_row[3].value().unwrap();
+        let timestamp: DateTime<Utc> = first_row[4].value().unwrap();
         assert_eq!(timestamp, updated);
 
-        let timestamp_as_string: String = first_row[3].value().unwrap();
+        let timestamp_as_string: String = first_row[4].value().unwrap();
         assert_eq!(timestamp_as_string, updated.to_string());
 
-        let timestamp_tz: DateTime<FixedOffset> = first_row[4].value().unwrap();
+        let timestamp_tz: DateTime<FixedOffset> = first_row[5].value().unwrap();
         assert_eq!(timestamp_tz, viewed);
+
+        let timestamp_tz_as_string: String = first_row[5].value().unwrap();
+        assert_eq!(timestamp_tz_as_string, viewed.to_string());
     }
 }

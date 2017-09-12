@@ -10,6 +10,8 @@ use chrono::{Date, Utc, DateTime, TimeZone, FixedOffset};
 pub enum SqlValue {
     /// Anything specified as `VARCHAR` or `VARCHAR2` will end up here.
     VarChar(String),
+    /// Represents `CHAR`
+    Char(String),
     /// All integers regardless of their stated size are represented with this variant. e.g.
     /// `SMALLINT` and `INTEGER` will both be held.
     Integer(i64),
@@ -23,7 +25,7 @@ pub enum SqlValue {
     /// Represents a timestamp without time zone
     Timestamp(DateTime<Utc>, String),
     /// Represents a timestamp with a time zone
-    TimestampTz(DateTime<FixedOffset>, String)
+    TimestampTz(DateTime<FixedOffset>, String),
 }
 impl SqlValue {
     /// Returns the internal value converting on the way to whichever type implements
@@ -59,7 +61,8 @@ impl SqlValue {
     ///
     pub(crate) fn as_oci_ptr(&mut self) -> *mut c_void {
         match *self {
-            SqlValue::VarChar(ref s) => s.as_ptr() as *mut c_void,
+            SqlValue::VarChar(ref s) |
+            SqlValue::Char(ref s) => s.as_ptr() as *mut c_void,
             SqlValue::Integer(ref mut i) => (i as *mut i64) as *mut c_void,
             SqlValue::Float(ref mut f) => (f as *mut f64) as *mut c_void,
             SqlValue::Null => panic!("Null not handled"),
@@ -76,7 +79,8 @@ impl SqlValue {
     ///
     pub(crate) fn size(&self) -> c_int {
         match *self {
-            SqlValue::VarChar(ref s) => s.capacity() as c_int,
+            SqlValue::VarChar(ref s) |
+            SqlValue::Char(ref s) => s.capacity() as c_int,
             SqlValue::Integer(..) |
             SqlValue::Float(..) => 8 as c_int,
             SqlValue::Null => panic!("Null not handled"),
@@ -94,24 +98,33 @@ impl SqlValue {
     ///
     pub(crate) fn as_oci_data_type(&self) -> OciDataType {
         match *self {
-            SqlValue::VarChar(..) => OciDataType::SqlChar,
+            SqlValue::VarChar(..) => OciDataType::SqlVarChar,
+            SqlValue::Char(..) => OciDataType::SqlChar,
             SqlValue::Integer(..) => OciDataType::SqlInt,
             SqlValue::Float(..) => OciDataType::SqlFloat,
             SqlValue::Null => panic!("Null not handled"),
             SqlValue::Date(..) |
-            SqlValue::Timestamp(..) | SqlValue::TimestampTz(..) => OciDataType::SqlChar,
+            SqlValue::Timestamp(..) |
+            SqlValue::TimestampTz(..) => OciDataType::SqlVarChar,
         }
     }
 
     /// Create an `SqlValue` from a slice of bytes and indication of the data type
     ///
-    pub(crate) fn create_from_raw(data: &[u8],
+    pub(crate) fn create_from_raw(// crate) fn create_from_raw(
+                                  data: &[u8],
                                   sql_type: &OciDataType)
                                   -> Result<Self, OciError> {
         match *sql_type {
-            OciDataType::SqlChar => {
+            OciDataType::SqlVarChar => {
                 match String::from_utf8(Vec::from(data)) {
                     Ok(s) => Ok(SqlValue::VarChar(s.trim().to_string())),
+                    Err(err) => Err(OciError::Conversion(Box::new(err))),
+                }
+            }
+            OciDataType::SqlChar => {
+                match String::from_utf8(Vec::from(data)) {
+                    Ok(s) => Ok(SqlValue::Char(s.to_string())),
                     Err(err) => Err(OciError::Conversion(Box::new(err))),
                 }
             }
@@ -134,9 +147,14 @@ impl SqlValue {
             }
             OciDataType::SqlTimestampTz => {
                 let datetime_tz = create_datetime_with_timezone_from_raw(data);
-                Ok(SqlValue::TimestampTz(datetime_tz, datetime_with_timezone_in_oracle_format(&datetime_tz)))
+                Ok(SqlValue::TimestampTz(datetime_tz,
+                                         datetime_with_timezone_in_oracle_format(&datetime_tz)))
             }
-            _ => panic!("Not implemented yet"),
+            ref x @ _ => {
+                panic!(format!("Creating a SqlValue from raw bytes is not implemented yet for: \
+                                {:?}",
+                               x))
+            }
         }
     }
 }
@@ -145,7 +163,7 @@ impl SqlValue {
 ///
 /// For example 21-May-17
 /// It might be better to create the Oracle byte format directly.
-/// 
+///
 fn date_in_oracle_format(date: &Date<Utc>) -> String {
     date.format("%d-%b-%y").to_string()
 }
@@ -160,7 +178,7 @@ fn datetime_in_oracle_format(date: &DateTime<Utc>) -> String {
 
 /// Creates a string form of a `DateTime<FixedOffset>` that Oracle will understand.
 ///
-/// For example 21-May-17 18.35.59.123456789
+/// For example 21-May-17 18.35.59.123456789 06:00
 ///
 fn datetime_with_timezone_in_oracle_format(date: &DateTime<FixedOffset>) -> String {
     date.format("%d-%b-%y %H.%M.%S.%f %:z").to_string()
@@ -240,7 +258,8 @@ impl FromSqlValue for String {
     //
     fn from_sql_value(sql_value: &SqlValue) -> Option<Self> {
         match *sql_value {
-            SqlValue::VarChar(ref s) => Some(s.to_string()),
+            SqlValue::VarChar(ref s) |
+            SqlValue::Char(ref s) => Some(s.to_string()),
             SqlValue::Integer(i) => Some(format!("{}", i)),
             SqlValue::Float(f) => Some(format!("{}", f)),
             SqlValue::Null => Some("null".to_string()),

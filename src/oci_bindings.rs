@@ -212,6 +212,7 @@ const SQLT_NUM: c_ushort = 2;
 const SQLT_INT: c_ushort = 3;
 const SQLT_FLT: c_ushort = 4;
 const SQLT_DAT: c_ushort = 12;
+const SQLT_AFC: c_ushort = 96;
 const SQLT_TIMESTAMP: c_ushort = 187;
 const SQLT_TIMESTAMP_INTERNAL: c_ushort = 180;
 const SQLT_TIMESTAMP_TZ: c_ushort = 188;
@@ -219,20 +220,24 @@ const SQLT_TIMESTAMP_TZ_INTERNAL: c_ushort = 181;
 
 #[derive(Debug)]
 pub enum OciDataType {
-    SqlChar,
+    SqlVarChar,
     SqlInt,
     SqlNum,
     SqlFloat,
     SqlDate,
+    SqlChar,
     SqlTimestamp,
     SqlTimestampTz,
 }
 impl OciDataType {
+    /// The number of bytes needed to respresent the data type.
+    ///
     pub fn size(&self) -> c_ushort {
         match *self {
-            OciDataType::SqlChar => 4000,
+            OciDataType::SqlVarChar => 4000,
             OciDataType::SqlInt | OciDataType::SqlNum | OciDataType::SqlFloat => 8,
             OciDataType::SqlDate => 7,
+            OciDataType::SqlChar => 2000,
             OciDataType::SqlTimestamp => 11,
             OciDataType::SqlTimestampTz => 13,
         }
@@ -242,11 +247,12 @@ impl OciDataType {
 impl From<OciDataType> for c_ushort {
     fn from(sql_type: OciDataType) -> Self {
         match sql_type {
-            OciDataType::SqlChar => SQLT_CHR,
+            OciDataType::SqlVarChar => SQLT_CHR,
             OciDataType::SqlInt => SQLT_INT,
             OciDataType::SqlNum => SQLT_NUM,
             OciDataType::SqlFloat => SQLT_FLT,
             OciDataType::SqlDate => SQLT_DAT,
+            OciDataType::SqlChar => SQLT_AFC,
             OciDataType::SqlTimestamp => SQLT_TIMESTAMP_INTERNAL,
             OciDataType::SqlTimestampTz => SQLT_TIMESTAMP_TZ_INTERNAL,
         }
@@ -256,11 +262,12 @@ impl From<OciDataType> for c_ushort {
 impl<'a> From<&'a OciDataType> for c_ushort {
     fn from(sql_type: &OciDataType) -> Self {
         match *sql_type {
-            OciDataType::SqlChar => SQLT_CHR,
+            OciDataType::SqlVarChar => SQLT_CHR,
             OciDataType::SqlInt => SQLT_INT,
             OciDataType::SqlNum => SQLT_NUM,
             OciDataType::SqlFloat => SQLT_FLT,
             OciDataType::SqlDate => SQLT_DAT,
+            OciDataType::SqlChar => SQLT_AFC,
             OciDataType::SqlTimestamp => SQLT_TIMESTAMP_INTERNAL,
             OciDataType::SqlTimestampTz => SQLT_TIMESTAMP_TZ_INTERNAL,
         }
@@ -270,11 +277,12 @@ impl<'a> From<&'a OciDataType> for c_ushort {
 impl From<c_ushort> for OciDataType {
     fn from(number: c_ushort) -> Self {
         match number {
-            SQLT_CHR => OciDataType::SqlChar,
+            SQLT_CHR => OciDataType::SqlVarChar,
             SQLT_INT => OciDataType::SqlInt,
             SQLT_NUM => OciDataType::SqlNum,
             SQLT_FLT => OciDataType::SqlFloat,
             SQLT_DAT => OciDataType::SqlDate,
+            SQLT_AFC => OciDataType::SqlChar,
             SQLT_TIMESTAMP => OciDataType::SqlTimestamp,
             SQLT_TIMESTAMP_TZ => OciDataType::SqlTimestampTz,
             _ => {
@@ -407,6 +415,7 @@ extern "C" {
     /// # Safety
     ///
     /// C function so is unsafe.
+    ///
     pub fn OCIEnvCreate(envhpp: &*mut OCIEnv,
                         mode: c_uint,
                         ctxp: *const c_void,
@@ -430,6 +439,7 @@ extern "C" {
     /// # Safety
     ///
     /// Unsafe C
+    ///
     pub fn OCIHandleFree(hndlp: *mut c_void, hnd_type: c_uint) -> c_int;
 
     /// Allocates handles. As in OCIEnvCreate it allows user defined memory
@@ -442,6 +452,7 @@ extern "C" {
     /// # Safety
     ///
     /// Unsafe C
+    ///
     pub fn OCIHandleAlloc(parenth: *const c_void,
                           hndlpp: &*mut c_void,
                           hnd_type: c_uint,
@@ -457,6 +468,7 @@ extern "C" {
     /// # Safety
     ///
     /// Unsafe C
+    ///
     pub fn OCIErrorGet(hndlp: *mut c_void,
                        recordno: c_uint,
                        sqlstate: *mut c_uchar,
@@ -473,6 +485,7 @@ extern "C" {
     /// # Safety
     ///
     /// Unsafe C
+    ///
     pub fn OCIServerAttach(srvhp: *mut OCIServer,
                            errhp: *mut OCIError,
                            dblink: *const c_uchar,
@@ -488,6 +501,7 @@ extern "C" {
     /// # Safety
     ///
     /// Unsafe C
+    ///
     pub fn OCIServerDetach(srvhp: *mut OCIServer, errhp: *mut OCIError, mode: c_uint) -> c_int;
 
     /// Sets the value of an attribute of a handle, e.g. username in session
@@ -499,6 +513,7 @@ extern "C" {
     /// # Safety
     ///
     /// Unsafe C
+    ///
     pub fn OCIAttrSet(trgthndlp: *const c_void,
                       trghndltyp: c_uint,
                       attributep: *mut c_void,
@@ -514,6 +529,7 @@ extern "C" {
     /// # Safety
     ///
     /// Unsafe C
+    ///
     pub fn OCIAttrGet(trgthndlp: *const c_void,
                       trghndltyp: c_uint,
                       attributep: *mut c_void,
@@ -530,6 +546,7 @@ extern "C" {
     /// # Safety
     ///
     /// Unsafe C
+    ///
     pub fn OCISessionBegin(svchp: *mut OCISvcCtx,
                            errhp: *mut OCIError,
                            userhp: *mut OCISession,
@@ -544,6 +561,7 @@ extern "C" {
     /// # Safety
     ///
     /// Unsafe C
+    ///
     pub fn OCISessionEnd(svchp: *mut OCISvcCtx,
                          errhp: *mut OCIError,
                          userhp: *mut OCISession,
@@ -558,6 +576,7 @@ extern "C" {
     /// # Safety
     ///
     /// Unsafe C
+    ///
     pub fn OCIStmtPrepare2(svchp: *mut OCISvcCtx,
                            stmthp: &*mut OCIStmt,
                            errhp: *mut OCIError,
@@ -576,6 +595,7 @@ extern "C" {
     /// # Safety
     ///
     /// Unsafe C
+    ///
     pub fn OCIStmtRelease(stmthp: *mut OCIStmt,
                           errhp: *mut OCIError,
                           key: *const c_uchar,
@@ -607,6 +627,7 @@ extern "C" {
     /// # Safety
     ///
     /// Unsafe C
+    ///
     pub fn OCITransCommit(svchp: *mut OCISvcCtx, errhp: *mut OCIError, flags: c_uint) -> c_int;
 
     /// Creates an association between a program variable and a placeholder in a SQL statement
@@ -617,6 +638,7 @@ extern "C" {
     /// # Safety
     ///
     /// Unsafe C
+    ///
     pub fn OCIBindByPos(stmtp: *mut OCIStmt,
                         bindpp: &*mut OCIBind,
                         errhp: *mut OCIError,
@@ -641,6 +663,7 @@ extern "C" {
     /// # Safety
     ///
     /// Unsafe C
+    ///
     pub fn OCIParamGet(hndlp: *const c_void,
                        htype: c_uint,
                        errhp: *mut OCIError,
@@ -656,6 +679,7 @@ extern "C" {
     /// # Safety
     ///
     /// Unsafe C
+    ///
     pub fn OCIDefineByPos(stmtp: *mut OCIStmt,
                           defnpp: &*mut OCIDefine,
                           errhp: *mut OCIError,
@@ -676,6 +700,7 @@ extern "C" {
     /// # Safety
     ///
     /// Unsafe C
+    ///
     pub fn OCIStmtFetch2(stmthp: *mut OCIStmt,
                          errhp: *mut OCIError,
                          nrows: c_uint,
@@ -691,6 +716,7 @@ extern "C" {
     /// # Safety
     ///
     /// Unsafe C
+    ///
     pub fn OCIDescriptorFree(descp: *mut c_void, desc_type: c_uint) -> c_int;
 
 }

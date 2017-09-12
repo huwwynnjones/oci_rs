@@ -8,7 +8,7 @@ pub struct Row {
     columns: Vec<SqlValue>,
 }
 impl Row {
-    pub(crate) fn new(// crate) fn new(// crate) fn new(
+    pub(crate) fn new(// crate) fn new(// crate) fn new(// crate) fn new(
                       columns: Vec<SqlValue>)
                       -> Row {
         Row { columns: columns }
