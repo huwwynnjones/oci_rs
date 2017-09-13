@@ -68,7 +68,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! oci_rs = "0.4.0"
+//! oci_rs = "0.5.0"
 //! ```
 //! and this to your crate root:
 //!
