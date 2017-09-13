@@ -111,7 +111,7 @@ impl SqlValue {
 
     /// Create an `SqlValue` from a slice of bytes and indication of the data type
     ///
-    pub(crate) fn create_from_raw(// crate) fn create_from_raw(
+    pub(crate) fn create_from_raw(
                                   data: &[u8],
                                   sql_type: &OciDataType)
                                   -> Result<Self, OciError> {

@@ -46,7 +46,7 @@ pub struct Statement<'conn> {
 impl<'conn> Statement<'conn> {
     /// Creates a new `Statement`.
     ///
-    pub(crate) fn new(// crate) fn new(
+    pub(crate) fn new(
                       connection: &'conn Connection,
                       sql: &str)
                       -> Result<Self, OciError> {
@@ -467,14 +467,20 @@ fn get_statement_type(statement: *mut OCIStmt,
 }
 
 #[derive(Debug)]
-struct Column {
-    handle: *mut OCIParam,
+
+struct ColumnPtrHolder {
     define: *mut OCIDefine,
-    sql_type: OciDataType,
     buffer: Vec<u8>,
     buffer_ptr: *mut c_void,
     null_ind: Box<c_short>,
     null_ind_ptr: *mut c_short,
+}
+
+#[derive(Debug)]
+struct Column {
+    handle: *mut OCIParam,
+    sql_type: OciDataType,
+    column_ptr_holder: ColumnPtrHolder,
 }
 impl Column {
     fn new(statement: *mut OCIStmt,
@@ -484,16 +490,12 @@ impl Column {
         let parameter = allocate_parameter_handle(statement, error, position)?;
         let data_type = determine_external_data_type(parameter, error)?;
         let data_size = column_data_size(parameter, error)?;
-        let (define, buffer, buffer_ptr, null_ind, null_ind_ptr) =
+        let column_ptr_holder =
             define_output_parameter(statement, error, position, data_size, &data_type)?;
         Ok(Column {
             handle: parameter,
-            define: define,
             sql_type: data_type,
-            buffer: buffer,
-            buffer_ptr: buffer_ptr,
-            null_ind: null_ind,
-            null_ind_ptr: null_ind_ptr,
+            column_ptr_holder,
         })
     }
 
@@ -501,12 +503,12 @@ impl Column {
         if self.is_null() {
             Ok(SqlValue::Null)
         } else {
-            Ok(SqlValue::create_from_raw(&self.buffer, &self.sql_type)?)
+            Ok(SqlValue::create_from_raw(&self.column_ptr_holder.buffer, &self.sql_type)?)
         }
     }
 
     fn is_null(&self) -> bool {
-        *self.null_ind == -1
+        *self.column_ptr_holder.null_ind == -1
     }
 }
 
@@ -516,7 +518,7 @@ fn define_output_parameter
      position: c_uint,
      data_size: c_ushort,
      data_type: &OciDataType)
-     -> Result<(*mut OCIDefine, Vec<u8>, *mut c_void, Box<c_short>, *mut c_short), OciError> {
+     -> Result<ColumnPtrHolder, OciError> {
     let buffer_size = match *data_type {
         OciDataType::SqlVarChar | OciDataType::SqlChar => data_size,
         _ => data_type.size(),
@@ -543,7 +545,11 @@ fn define_output_parameter
                        EnvironmentMode::Default.into())
     };
     match define_result.into() {
-        ReturnCode::Success => Ok((define, buffer, buffer_ptr, indp, indp_ptr)),
+        ReturnCode::Success => Ok(ColumnPtrHolder{define,
+                                                  buffer,
+                                                  buffer_ptr,
+                                                  null_ind: indp,
+                                                  null_ind_ptr: indp_ptr}),
         _ => {
             Err(get_error(error as *mut c_void,
                           HandleType::Error,
