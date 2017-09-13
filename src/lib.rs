@@ -287,6 +287,7 @@ pub mod oci_error;
 /// |--------------------------|-------------------------|
 /// | VARCHAR                  | `String`                |
 /// | VARCHAR2                 | `String`                |
+/// | CHAR                     | `String`                |
 /// | NUMBER                   | `i64`, `f64`            |
 /// | DATE                     | `Date<Utc>`             |
 /// | TIMESTAMP                | `DateTime<Utc>`         |

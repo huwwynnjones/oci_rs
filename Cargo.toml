@@ -9,7 +9,7 @@ license = "MIT"
 homepage = "https://github.com/huwwynnjones/oci_rs"
 repository = "https://github.com/huwwynnjones/oci_rs"
 documentation = "https://docs.rs/crate/oci_rs/"
-readme = "README.md"
+readme = "CRATEREADME.md"
 
 [dependencies]
 libc = "0.2.23"
