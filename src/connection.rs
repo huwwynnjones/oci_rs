@@ -1,11 +1,11 @@
-use oci_bindings::{OCIEnv, OCIEnvCreate, HandleType, OCIHandleFree, OCIServer, OCIHandleAlloc,
-                   ReturnCode, EnvironmentMode, OCIError, OCISvcCtx, OCIServerAttach,
-                   OCIServerDetach, AttributeType, OCIAttrSet, OCISession, OCISessionBegin,
-                   CredentialsType, OCISessionEnd};
-use oci_error::{OciError, get_error};
+use oci_bindings::{AttributeType, CredentialsType, EnvironmentMode, HandleType, OCIAttrSet,
+                   OCIEnv, OCIEnvCreate, OCIError, OCIHandleAlloc, OCIHandleFree, OCIServer,
+                   OCIServerAttach, OCIServerDetach, OCISession, OCISessionBegin, OCISessionEnd,
+                   OCISvcCtx, ReturnCode};
+use oci_error::{get_error, OciError};
 use std::ptr;
 use statement::Statement;
-use libc::{c_void, size_t, c_int, c_uint};
+use libc::{c_int, c_uint, c_void, size_t};
 
 /// Represents a connection to a database.
 ///
@@ -42,10 +42,11 @@ impl Connection {
     ///
     /// [1]: ../oci_error/enum.OciError.html
     ///
-    pub fn new(connection_str: &str,
-               user_name: &str,
-               password: &str)
-               -> Result<Connection, OciError> {
+    pub fn new(
+        connection_str: &str,
+        user_name: &str,
+        password: &str,
+    ) -> Result<Connection, OciError> {
         let environment = create_environment_handle()?;
         let server = create_server_handle(environment)?;
         let error = create_error_handle(environment)?;
@@ -128,10 +129,12 @@ impl Drop for Connection {
     ///
     fn drop(&mut self) {
         let session_end_result = unsafe {
-            OCISessionEnd(self.service,
-                          self.error,
-                          self.session,
-                          EnvironmentMode::Default.into())
+            OCISessionEnd(
+                self.service,
+                self.error,
+                self.session,
+                EnvironmentMode::Default.into(),
+            )
         };
 
         match session_end_result.into() {
@@ -148,8 +151,10 @@ impl Drop for Connection {
         }
 
         let free_result = unsafe {
-            OCIHandleFree(self.environment as *mut c_void,
-                          HandleType::Environment.into())
+            OCIHandleFree(
+                self.environment as *mut c_void,
+                HandleType::Environment.into(),
+            )
         };
 
         match free_result.into() {
@@ -166,22 +171,24 @@ fn create_environment_handle() -> Result<*mut OCIEnv, OciError> {
     let xtramem_sz: size_t = 0;
     let null_ptr = ptr::null();
     let env_result = unsafe {
-        OCIEnvCreate(&env,
-                     mode,
-                     null_ptr,
-                     null_ptr,
-                     null_ptr,
-                     null_ptr,
-                     xtramem_sz,
-                     null_ptr)
+        OCIEnvCreate(
+            &env,
+            mode,
+            null_ptr,
+            null_ptr,
+            null_ptr,
+            null_ptr,
+            xtramem_sz,
+            null_ptr,
+        )
     };
     match env_result.into() {
         ReturnCode::Success => Ok(env),
-        _ => {
-            Err(get_error(env as *mut c_void,
-                          HandleType::Environment,
-                          "Environment handle creation"))
-        }
+        _ => Err(get_error(
+            env as *mut c_void,
+            HandleType::Environment,
+            "Environment handle creation",
+        )),
     }
 }
 
@@ -210,19 +217,21 @@ fn create_service_handle(env: *const OCIEnv) -> Result<*mut OCISvcCtx, OciError>
 }
 
 /// set the server handle in the service handle
-fn set_server_in_service(service: *mut OCISvcCtx,
-                         server: *mut OCIServer,
-                         error: *mut OCIError)
-                         -> Result<(), OciError> {
-
+fn set_server_in_service(
+    service: *mut OCISvcCtx,
+    server: *mut OCIServer,
+    error: *mut OCIError,
+) -> Result<(), OciError> {
     let size: c_uint = 0;
-    set_handle_attribute(service as *mut c_void,
-                         HandleType::Service,
-                         server as *mut c_void,
-                         size,
-                         AttributeType::Server,
-                         error,
-                         "Setting server in service handle")?;
+    set_handle_attribute(
+        service as *mut c_void,
+        HandleType::Service,
+        server as *mut c_void,
+        size,
+        AttributeType::Server,
+        error,
+        "Setting server in service handle",
+    )?;
     Ok(())
 }
 
@@ -235,81 +244,93 @@ fn create_session_handle(env: *const OCIEnv) -> Result<*mut OCISession, OciError
 }
 
 /// set user name
-fn set_user_name_in_session(session: *mut OCISession,
-                            user_name: &str,
-                            error: *mut OCIError)
-                            -> Result<(), OciError> {
+fn set_user_name_in_session(
+    session: *mut OCISession,
+    user_name: &str,
+    error: *mut OCIError,
+) -> Result<(), OciError> {
     let user_name_ptr = user_name.as_ptr();
     let user_name_len = user_name.len() as c_uint;
 
-    set_handle_attribute(session as *mut c_void,
-                         HandleType::Session,
-                         user_name_ptr as *mut c_void,
-                         user_name_len,
-                         AttributeType::UserName.into(),
-                         error,
-                         "Setting user name")?;
+    set_handle_attribute(
+        session as *mut c_void,
+        HandleType::Session,
+        user_name_ptr as *mut c_void,
+        user_name_len,
+        AttributeType::UserName.into(),
+        error,
+        "Setting user name",
+    )?;
     Ok(())
 }
 
 /// set password
-fn set_password_in_session(session: *mut OCISession,
-                           password: &str,
-                           error: *mut OCIError)
-                           -> Result<(), OciError> {
+fn set_password_in_session(
+    session: *mut OCISession,
+    password: &str,
+    error: *mut OCIError,
+) -> Result<(), OciError> {
     let password_ptr = password.as_ptr();
     let password_len = password.len() as c_uint;
 
-    set_handle_attribute(session as *mut c_void,
-                         HandleType::Session,
-                         password_ptr as *mut c_void,
-                         password_len,
-                         AttributeType::Password.into(),
-                         error,
-                         "Setting password")?;
+    set_handle_attribute(
+        session as *mut c_void,
+        HandleType::Session,
+        password_ptr as *mut c_void,
+        password_len,
+        AttributeType::Password.into(),
+        error,
+        "Setting password",
+    )?;
     Ok(())
 }
 
 /// Set user session in service handle
-fn set_session_in_service(service: *mut OCISvcCtx,
-                          session: *mut OCISession,
-                          error: *mut OCIError)
-                          -> Result<(), OciError> {
+fn set_session_in_service(
+    service: *mut OCISvcCtx,
+    session: *mut OCISession,
+    error: *mut OCIError,
+) -> Result<(), OciError> {
     let size: c_uint = 0;
-    set_handle_attribute(service as *mut c_void,
-                         HandleType::Service.into(),
-                         session as *mut c_void,
-                         size,
-                         AttributeType::Session,
-                         error,
-                         "Setting user session in service")?;
+    set_handle_attribute(
+        service as *mut c_void,
+        HandleType::Service.into(),
+        session as *mut c_void,
+        size,
+        AttributeType::Session,
+        error,
+        "Setting user session in service",
+    )?;
     Ok(())
 }
 
 /// Set handle attribute
-fn set_handle_attribute(handle: *mut c_void,
-                        handle_type: HandleType,
-                        attribute_handle: *mut c_void,
-                        size: c_uint,
-                        attribute_type: AttributeType,
-                        error_handle: *mut OCIError,
-                        error_description: &str)
-                        -> Result<(), OciError> {
+fn set_handle_attribute(
+    handle: *mut c_void,
+    handle_type: HandleType,
+    attribute_handle: *mut c_void,
+    size: c_uint,
+    attribute_type: AttributeType,
+    error_handle: *mut OCIError,
+    error_description: &str,
+) -> Result<(), OciError> {
     let attr_set_result = unsafe {
-        OCIAttrSet(handle,
-                   handle_type.into(),
-                   attribute_handle,
-                   size,
-                   attribute_type.into(),
-                   error_handle)
+        OCIAttrSet(
+            handle,
+            handle_type.into(),
+            attribute_handle,
+            size,
+            attribute_type.into(),
+            error_handle,
+        )
     };
     match attr_set_result.into() {
         ReturnCode::Success => Ok(()),
-        _ => {
-            Err(get_error(error_handle as *mut c_void,
-                          HandleType::Error,
-                          error_description))
-        }
+        _ => Err(get_error(
+            error_handle as *mut c_void,
+            HandleType::Error,
+            error_description,
+        )),
     }
 }
 
@@ -319,68 +340,75 @@ fn allocate_handle(env: *const OCIEnv, handle_type: HandleType) -> Result<*mut c
     let xtramem_sz: size_t = 0;
     let null_ptr = ptr::null();
     let allocation_result = unsafe {
-        OCIHandleAlloc(env as *const c_void,
-                       &handle,
-                       handle_type.into(),
-                       xtramem_sz,
-                       null_ptr)
+        OCIHandleAlloc(
+            env as *const c_void,
+            &handle,
+            handle_type.into(),
+            xtramem_sz,
+            null_ptr,
+        )
     };
     match allocation_result.into() {
         ReturnCode::Success => Ok(handle),
-        _ => {
-            Err(get_error(env as *mut c_void,
-                          HandleType::Environment,
-                          handle_type.into()))
-        }
+        _ => Err(get_error(
+            env as *mut c_void,
+            HandleType::Environment,
+            handle_type.into(),
+        )),
     }
 }
 
 /// Connect to the database
-fn connect_to_database(server: *mut OCIServer,
-                       connection_str: &str,
-                       error: *mut OCIError)
-                       -> Result<(), OciError> {
+fn connect_to_database(
+    server: *mut OCIServer,
+    connection_str: &str,
+    error: *mut OCIError,
+) -> Result<(), OciError> {
     let conn_ptr = connection_str.as_ptr();
     let conn_len = connection_str.len() as c_int;
 
     let connect_result = unsafe {
-        OCIServerAttach(server,
-                        error,
-                        conn_ptr,
-                        conn_len,
-                        EnvironmentMode::Default.into())
+        OCIServerAttach(
+            server,
+            error,
+            conn_ptr,
+            conn_len,
+            EnvironmentMode::Default.into(),
+        )
     };
 
     match connect_result.into() {
         ReturnCode::Success => Ok(()),
-        _ => {
-            Err(get_error(error as *mut c_void,
-                          HandleType::Environment,
-                          "Database connection"))
-        }
+        _ => Err(get_error(
+            error as *mut c_void,
+            HandleType::Error,
+            "Database connection",
+        )),
     }
 }
 
 /// start user session
-fn start_session(service: *mut OCISvcCtx,
-                 session: *mut OCISession,
-                 error: *mut OCIError)
-                 -> Result<(), OciError> {
-
+fn start_session(
+    service: *mut OCISvcCtx,
+    session: *mut OCISession,
+    error: *mut OCIError,
+) -> Result<(), OciError> {
     let session_result = unsafe {
-        OCISessionBegin(service,
-                        error,
-                        session,
-                        CredentialsType::Rdbms.into(),
-                        EnvironmentMode::Default.into())
+        OCISessionBegin(
+            service,
+            error,
+            session,
+            CredentialsType::Rdbms.into(),
+            EnvironmentMode::Default.into(),
+        )
     };
 
     match session_result.into() {
         ReturnCode::Success => Ok(()),
-        _ => {
-            Err(get_error(error as *mut c_void,
-                          HandleType::Error,
-                          "Starting user session"))
-        }
+        _ => Err(get_error(
+            error as *mut c_void,
+            HandleType::Error,
+            "Starting user session",
+        )),
     }
 }

@@ -1,4 +1,4 @@
-use libc::{c_uint, c_int, c_void, c_uchar, size_t, c_ushort};
+use libc::{c_int, c_uchar, c_uint, c_ushort, c_void, size_t};
 
 #[derive(Debug)]
 pub enum OCIEnv {}
@@ -59,10 +59,10 @@ impl From<c_int> for ReturnCode {
             OCI_NO_DATA => ReturnCode::NoData,
             OCI_INVALID_HANDLE => ReturnCode::InvalidHandle,
             OCI_ERROR => ReturnCode::Error,
-            _ => {
-                panic!(format!("Found an unknown return code: {}, this should not happen.",
-                               number))
-            }
+            _ => panic!(format!(
+                "Found an unknown return code: {}, this should not happen.",
+                number
+            )),
         }
     }
 }
@@ -110,10 +110,10 @@ impl From<c_uint> for HandleType {
             OCI_HTYPE_DEFINE => HandleType::Define,
             OCI_HTYPE_SERVER => HandleType::Server,
             OCI_HTYPE_SESSION => HandleType::Session,
-            _ => {
-                panic!(format!("Found an unknown handle type: {}, this should not happen.",
-                               number))
-            }
+            _ => panic!(format!(
+                "Found an unknown handle type: {}, this should not happen.",
+                number
+            )),
         }
     }
 }
@@ -285,10 +285,10 @@ impl From<c_ushort> for OciDataType {
             SQLT_AFC => OciDataType::SqlChar,
             SQLT_TIMESTAMP => OciDataType::SqlTimestamp,
             SQLT_TIMESTAMP_TZ => OciDataType::SqlTimestampTz,
-            _ => {
-                panic!(format!("Found an unknown OciDataType code, {}, this should not happen.",
-                               number))
-            }
+            _ => panic!(format!(
+                "Found an unknown OciDataType code, {}, this should not happen.",
+                number
+            )),
         }
     }
 }
@@ -348,10 +348,10 @@ impl From<c_uint> for StatementType {
             OCI_STMT_ALTER => StatementType::Alter,
             OCI_STMT_BEGIN => StatementType::Begin,
             OCI_STMT_DECLARE => StatementType::Declare,
-            _ => {
-                panic!(format!("Found an unknown statement type: {}, this should not happen.",
-                               number))
-            }
+            _ => panic!(format!(
+                "Found an unknown statement type: {}, this should not happen.",
+                number
+            )),
         }
     }
 }
@@ -404,7 +404,7 @@ impl From<OciNumberType> for c_uint {
     }
 }
 
-#[link(name="clntsh")]
+#[link(name = "clntsh")]
 extern "C" {
     /// Creates the environment handle. The signature has been changed to only
     /// allow null pointers for the user defined memory parameters. This means
@@ -416,20 +416,21 @@ extern "C" {
     ///
     /// C function so is unsafe.
     ///
-    pub fn OCIEnvCreate(envhpp: &*mut OCIEnv,
-                        mode: c_uint,
-                        ctxp: *const c_void,
-                        // maloc_cb: extern "C" fn(*const c_void, size_t) -> *const c_void,
-                        maloc_cb: *const c_void,
-                        // raloc_cb: extern "C" fn(*const c_void, *const c_void, size_t)
-                        //                        -> *const c_void,
-                        raloc_cb: *const c_void,
-                        // mfree_cb: extern "C" fn(*const c_void, *const c_void) -> *const c_void,
-                        mfree_cb: *const c_void,
-                        xtramemsz: size_t,
-                        // usrmempp: &*mut c_void)
-                        usrmempp: *const c_void)
-                        -> c_int;
+    pub fn OCIEnvCreate(
+        envhpp: &*mut OCIEnv,
+        mode: c_uint,
+        ctxp: *const c_void,
+        // maloc_cb: extern "C" fn(*const c_void, size_t) -> *const c_void,
+        maloc_cb: *const c_void,
+        // raloc_cb: extern "C" fn(*const c_void, *const c_void, size_t)
+        //                        -> *const c_void,
+        raloc_cb: *const c_void,
+        // mfree_cb: extern "C" fn(*const c_void, *const c_void) -> *const c_void,
+        mfree_cb: *const c_void,
+        xtramemsz: size_t,
+        // usrmempp: &*mut c_void)
+        usrmempp: *const c_void,
+    ) -> c_int;
 
     /// Frees a handle and deallocates the memory. Any child handles are automatically
     /// freed as well.
@@ -453,13 +454,14 @@ extern "C" {
     ///
     /// Unsafe C
     ///
-    pub fn OCIHandleAlloc(parenth: *const c_void,
-                          hndlpp: &*mut c_void,
-                          hnd_type: c_uint,
-                          xtramem_sz: size_t,
-                          // usrmempp: &*mut c_void
-                          usrmempp: *const c_void)
-                          -> c_int;
+    pub fn OCIHandleAlloc(
+        parenth: *const c_void,
+        hndlpp: &*mut c_void,
+        hnd_type: c_uint,
+        xtramem_sz: size_t,
+        // usrmempp: &*mut c_void
+        usrmempp: *const c_void,
+    ) -> c_int;
 
     /// Gets an error record. The sqlstate parameter is unused.
     /// See [Oracle docs](https://docs.oracle.com/database/122/
@@ -469,14 +471,15 @@ extern "C" {
     ///
     /// Unsafe C
     ///
-    pub fn OCIErrorGet(hndlp: *mut c_void,
-                       recordno: c_uint,
-                       sqlstate: *mut c_uchar,
-                       errcodep: *mut c_int,
-                       bufp: *mut c_uchar,
-                       bufsiz: c_uint,
-                       hnd_type: c_uint)
-                       -> c_int;
+    pub fn OCIErrorGet(
+        hndlp: *mut c_void,
+        recordno: c_uint,
+        sqlstate: *mut c_uchar,
+        errcodep: *mut c_int,
+        bufp: *mut c_uchar,
+        bufsiz: c_uint,
+        hnd_type: c_uint,
+    ) -> c_int;
 
     /// Connects to the database.
     /// See [Oracle docs](https://docs.oracle.com/database/122/
@@ -486,12 +489,13 @@ extern "C" {
     ///
     /// Unsafe C
     ///
-    pub fn OCIServerAttach(srvhp: *mut OCIServer,
-                           errhp: *mut OCIError,
-                           dblink: *const c_uchar,
-                           dblink_len: c_int,
-                           mode: c_uint)
-                           -> c_int;
+    pub fn OCIServerAttach(
+        srvhp: *mut OCIServer,
+        errhp: *mut OCIError,
+        dblink: *const c_uchar,
+        dblink_len: c_int,
+        mode: c_uint,
+    ) -> c_int;
 
     /// Disconnects the database. Must be called during disconnection or else
     /// will leave zombie processes running in the OS.
@@ -514,13 +518,14 @@ extern "C" {
     ///
     /// Unsafe C
     ///
-    pub fn OCIAttrSet(trgthndlp: *const c_void,
-                      trghndltyp: c_uint,
-                      attributep: *mut c_void,
-                      size: c_uint,
-                      attrtype: c_uint,
-                      errhp: *mut OCIError)
-                      -> c_int;
+    pub fn OCIAttrSet(
+        trgthndlp: *const c_void,
+        trghndltyp: c_uint,
+        attributep: *mut c_void,
+        size: c_uint,
+        attrtype: c_uint,
+        errhp: *mut OCIError,
+    ) -> c_int;
 
     /// Gets the value of an attribute of a handle.
     /// See [Oracle docs](https://docs.oracle.com/database/122/LNOCI/
@@ -530,13 +535,14 @@ extern "C" {
     ///
     /// Unsafe C
     ///
-    pub fn OCIAttrGet(trgthndlp: *const c_void,
-                      trghndltyp: c_uint,
-                      attributep: *mut c_void,
-                      sizep: *mut c_uint,
-                      attrtype: c_uint,
-                      errhp: *mut OCIError)
-                      -> c_int;
+    pub fn OCIAttrGet(
+        trgthndlp: *const c_void,
+        trghndltyp: c_uint,
+        attributep: *mut c_void,
+        sizep: *mut c_uint,
+        attrtype: c_uint,
+        errhp: *mut OCIError,
+    ) -> c_int;
 
     /// Creates and starts a user session.
     /// See [Oracle docs](https://docs.oracle.com/database/122/LNOCI/
@@ -547,12 +553,13 @@ extern "C" {
     ///
     /// Unsafe C
     ///
-    pub fn OCISessionBegin(svchp: *mut OCISvcCtx,
-                           errhp: *mut OCIError,
-                           userhp: *mut OCISession,
-                           credt: c_uint,
-                           mode: c_uint)
-                           -> c_int;
+    pub fn OCISessionBegin(
+        svchp: *mut OCISvcCtx,
+        errhp: *mut OCIError,
+        userhp: *mut OCISession,
+        credt: c_uint,
+        mode: c_uint,
+    ) -> c_int;
 
     /// Stops a user session.
     /// See [Oracle docs](https://docs.oracle.com/database/122/LNOCI/
@@ -562,11 +569,12 @@ extern "C" {
     ///
     /// Unsafe C
     ///
-    pub fn OCISessionEnd(svchp: *mut OCISvcCtx,
-                         errhp: *mut OCIError,
-                         userhp: *mut OCISession,
-                         mode: c_uint)
-                         -> c_int;
+    pub fn OCISessionEnd(
+        svchp: *mut OCISvcCtx,
+        errhp: *mut OCIError,
+        userhp: *mut OCISession,
+        mode: c_uint,
+    ) -> c_int;
 
     /// Prepares a SQL or PL/SQL statement for execution. The user has the option of using
     /// the statement cache, if it has been enabled.
@@ -577,16 +585,17 @@ extern "C" {
     ///
     /// Unsafe C
     ///
-    pub fn OCIStmtPrepare2(svchp: *mut OCISvcCtx,
-                           stmthp: &*mut OCIStmt,
-                           errhp: *mut OCIError,
-                           stmttext: *const c_uchar,
-                           stmt_len: c_uint,
-                           key: *const c_uchar,
-                           keylen: c_uint,
-                           language: c_uint,
-                           mode: c_uint)
-                           -> c_int;
+    pub fn OCIStmtPrepare2(
+        svchp: *mut OCISvcCtx,
+        stmthp: &*mut OCIStmt,
+        errhp: *mut OCIError,
+        stmttext: *const c_uchar,
+        stmt_len: c_uint,
+        key: *const c_uchar,
+        keylen: c_uint,
+        language: c_uint,
+        mode: c_uint,
+    ) -> c_int;
 
     /// Releases the statement handle obtained by a call to OCIStmtPrepare2().
     /// See [Oracle docs](https://docs.oracle.com/database/122/LNOCI/
@@ -596,12 +605,13 @@ extern "C" {
     ///
     /// Unsafe C
     ///
-    pub fn OCIStmtRelease(stmthp: *mut OCIStmt,
-                          errhp: *mut OCIError,
-                          key: *const c_uchar,
-                          keylen: c_uint,
-                          mode: c_uint)
-                          -> c_int;
+    pub fn OCIStmtRelease(
+        stmthp: *mut OCIStmt,
+        errhp: *mut OCIError,
+        key: *const c_uchar,
+        keylen: c_uint,
+        mode: c_uint,
+    ) -> c_int;
 
     /// Executes a statement.
     /// See [Oracle docs](https://docs.oracle.com/database/122/LNOCI/
@@ -610,15 +620,16 @@ extern "C" {
     /// # Safety
     ///
     /// Unsafe C
-    pub fn OCIStmtExecute(svchp: *mut OCISvcCtx,
-                          stmtp: *mut OCIStmt,
-                          errhp: *mut OCIError,
-                          iters: c_uint,
-                          rowoff: c_uint,
-                          snap_in: *const OCISnapshot,
-                          snap_out: *mut OCISnapshot,
-                          mode: c_uint)
-                          -> c_int;
+    pub fn OCIStmtExecute(
+        svchp: *mut OCISvcCtx,
+        stmtp: *mut OCIStmt,
+        errhp: *mut OCIError,
+        iters: c_uint,
+        rowoff: c_uint,
+        snap_in: *const OCISnapshot,
+        snap_out: *mut OCISnapshot,
+        mode: c_uint,
+    ) -> c_int;
 
     /// Commits the transaction associated with a specified service context.
     /// See [Oracle docs](https://docs.oracle.com/cd/E11882_01/appdev.112/e10646/
@@ -639,20 +650,21 @@ extern "C" {
     ///
     /// Unsafe C
     ///
-    pub fn OCIBindByPos(stmtp: *mut OCIStmt,
-                        bindpp: &*mut OCIBind,
-                        errhp: *mut OCIError,
-                        position: c_uint,
-                        valuep: *mut c_void,
-                        value_sz: c_int,
-                        dty: c_ushort,
-                        indp: *mut c_void,
-                        alenp: *mut c_ushort,
-                        rcodep: *mut c_ushort,
-                        maxarr_len: c_uint,
-                        curelep: *mut c_uint,
-                        mode: c_uint)
-                        -> c_int;
+    pub fn OCIBindByPos(
+        stmtp: *mut OCIStmt,
+        bindpp: &*mut OCIBind,
+        errhp: *mut OCIError,
+        position: c_uint,
+        valuep: *mut c_void,
+        value_sz: c_int,
+        dty: c_ushort,
+        indp: *mut c_void,
+        alenp: *mut c_ushort,
+        rcodep: *mut c_ushort,
+        maxarr_len: c_uint,
+        curelep: *mut c_uint,
+        mode: c_uint,
+    ) -> c_int;
 
     /// Returns a descriptor of a parameter specified by position in the describe handle or
     /// statement handle.
@@ -664,12 +676,13 @@ extern "C" {
     ///
     /// Unsafe C
     ///
-    pub fn OCIParamGet(hndlp: *const c_void,
-                       htype: c_uint,
-                       errhp: *mut OCIError,
-                       parmdpp: &*mut OCIParam,
-                       pos: c_uint)
-                       -> c_int;
+    pub fn OCIParamGet(
+        hndlp: *const c_void,
+        htype: c_uint,
+        errhp: *mut OCIError,
+        parmdpp: &*mut OCIParam,
+        pos: c_uint,
+    ) -> c_int;
 
     /// Associates an item in a select list with the type and output data buffer.
     /// See [Oracle docs](http://docs.oracle.com/database/122/LNOCI/
@@ -680,18 +693,19 @@ extern "C" {
     ///
     /// Unsafe C
     ///
-    pub fn OCIDefineByPos(stmtp: *mut OCIStmt,
-                          defnpp: &*mut OCIDefine,
-                          errhp: *mut OCIError,
-                          position: c_uint,
-                          valuep: *mut c_void,
-                          value_sz: c_int,
-                          dty: c_ushort,
-                          indp: *mut c_void,
-                          rlenp: *mut c_ushort,
-                          rcodep: *mut c_ushort,
-                          mode: c_uint)
-                          -> c_int;
+    pub fn OCIDefineByPos(
+        stmtp: *mut OCIStmt,
+        defnpp: &*mut OCIDefine,
+        errhp: *mut OCIError,
+        position: c_uint,
+        valuep: *mut c_void,
+        value_sz: c_int,
+        dty: c_ushort,
+        indp: *mut c_void,
+        rlenp: *mut c_ushort,
+        rcodep: *mut c_ushort,
+        mode: c_uint,
+    ) -> c_int;
 
     /// Fetches a row from the (scrollable) result set.
     /// See [Oracle docs](http://docs.oracle.com/database/122/LNOCI/
@@ -701,13 +715,14 @@ extern "C" {
     ///
     /// Unsafe C
     ///
-    pub fn OCIStmtFetch2(stmthp: *mut OCIStmt,
-                         errhp: *mut OCIError,
-                         nrows: c_uint,
-                         orientation: c_ushort,
-                         fetchOffset: c_int,
-                         mode: c_uint)
-                         -> c_int;
+    pub fn OCIStmtFetch2(
+        stmthp: *mut OCIStmt,
+        errhp: *mut OCIError,
+        nrows: c_uint,
+        orientation: c_ushort,
+        fetchOffset: c_int,
+        mode: c_uint,
+    ) -> c_int;
 
     /// Deallocates a previously allocated descriptor.
     /// See [Oracle docs](http://docs.oracle.com/database/122/LNOCI/

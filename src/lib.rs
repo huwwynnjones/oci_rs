@@ -167,9 +167,9 @@
 //! [11]: https://docs.oracle.com/database/122/ERRMG/toc.htm
 //!
 
-extern crate libc;
 extern crate byteorder;
 extern crate chrono;
+extern crate libc;
 
 /// Connections to a database.
 ///
@@ -493,10 +493,13 @@ mod oci_bindings;
 #[cfg(test)]
 mod tests {
     use connection::Connection;
-    use chrono::{Utc, TimeZone, Date, DateTime, FixedOffset};
+    use oci_error::OciError;
+    use chrono::{Date, DateTime, FixedOffset, TimeZone, Utc};
     const CONNECTION: &str = "localhost:1521/xe";
+    const BAD_CONNECTION: &str = "localhost:1521/xp";
     const USER: &str = "oci_rs";
     const PASSWORD: &str = "test";
+    const BAD_PASSWORD: &str = "toast";
 
     #[test]
     #[allow(unused_variables)]
@@ -505,6 +508,31 @@ mod tests {
             Ok(conn) => conn,
             Err(err) => panic!("Failed to create a connection: {}", err),
         };
+    }
+
+    #[test]
+    #[allow(unused_variables)]
+    #[should_panic]
+    fn create_connection_with_bad_password() {
+        let conn = match Connection::new(CONNECTION, USER, BAD_PASSWORD) {
+            Ok(conn) => conn,
+            Err(err) => panic!("Failed to create a connection: {}", err),
+        };
+    }
+
+    #[test]
+    #[allow(unused_variables)]
+    fn create_connection_with_bad_connection_string() {
+        let error = match Connection::new(BAD_CONNECTION, USER, PASSWORD) {
+            Ok(conn) => panic!("Should not have been able to create a connection, test is wrong."),
+            Err(err) => err, 
+        };
+        let code = match error {
+            OciError::Oracle(ref error_record) => &error_record.error_records()[0].0,
+            OciError::Conversion(_) => panic!("Should not have found a conversion error, test is wrong."),
+        };
+        let tns_listener_error: i32 = 12514;
+        assert_eq!(&tns_listener_error, code)
     }
 
     #[test]
@@ -786,7 +814,11 @@ mod tests {
             Ok(stmt) => stmt,
             Err(err) => panic!("{}", err),
         };
-        let values = [(1, "Toffee", 22.5), (2, "Haribo", -4.0), (3, "Gobstoppers", 34.5657)];
+        let values = [
+            (1, "Toffee", 22.5),
+            (2, "Haribo", -4.0),
+            (3, "Gobstoppers", 34.5657),
+        ];
         for value in values.iter() {
             if let Err(err) = insert.bind(&[&value.0, &value.1.to_string(), &value.2]) {
                 panic!("{}", err)

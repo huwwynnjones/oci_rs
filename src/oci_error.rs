@@ -2,8 +2,8 @@ use std::error::Error;
 use std::error;
 use std::fmt;
 use std::ptr;
-use libc::{c_uint, c_uchar, c_int, c_void};
-use oci_bindings::{OCIErrorGet, HandleType, ReturnCode};
+use libc::{c_int, c_uchar, c_uint, c_void};
+use oci_bindings::{HandleType, OCIErrorGet, ReturnCode};
 
 const MAX_ERROR_MESSAGE_SIZE: usize = 3024;
 
@@ -62,6 +62,11 @@ impl ErrorRecord {
         }
     }
 
+    /// Get the error records 
+    pub fn error_records(&self) -> &Vec<(i32, String)> {
+        &self.records
+    }
+
     /// Add a new error code and description to the ErrorRecord
     fn add_error(&mut self, code: i32, description: String) {
         self.records.push((code, description))
@@ -77,11 +82,14 @@ impl fmt::Display for ErrorRecord {
         let mut text = String::new();
         text.push_str(&self.description);
         for (index, error) in self.records.iter().enumerate() {
-            text.push_str(format!("\nError number: {}\nError code: ORA-{}\nError text: {}",
-                                  index + 1,
-                                  error.0,
-                                  &error.1)
-                .as_ref())
+            text.push_str(
+                format!(
+                    "\nError number: {}\nError code: ORA-{}\nError text: {}",
+                    index + 1,
+                    error.0,
+                    &error.1
+                ).as_ref(),
+            )
         }
         write!(f, "{}", text)
     }
@@ -91,10 +99,10 @@ impl fmt::Display for ErrorRecord {
 /// out of sequence then the errors returned might be caused by a different function.
 /// Often the caller will need to cast their handle to *mut `c_void` to make it work.
 pub(crate) fn get_error(
-                        handle: *mut c_void,
-                        handle_type: HandleType,
-                        description: &str)
-                        -> OciError {
+    handle: *mut c_void,
+    handle_type: HandleType,
+    description: &str,
+) -> OciError {
     let mut record_nmb: c_uint = 1;
     let sql_state: *mut c_uchar = ptr::null_mut();
     let mut error_record = ErrorRecord::new(description);
@@ -104,25 +112,26 @@ pub(crate) fn get_error(
         let mut error_message: [c_uchar; MAX_ERROR_MESSAGE_SIZE] = [0; MAX_ERROR_MESSAGE_SIZE];
         let error_message_ptr = error_message.as_mut_ptr();
         let error_result = unsafe {
-            OCIErrorGet(handle,
-                        record_nmb,
-                        sql_state,
-                        &mut error_code,
-                        error_message_ptr,
-                        MAX_ERROR_MESSAGE_SIZE as c_uint,
-                        handle_type.into())
+            OCIErrorGet(
+                handle,
+                record_nmb,
+                sql_state,
+                &mut error_code,
+                error_message_ptr,
+                MAX_ERROR_MESSAGE_SIZE as c_uint,
+                handle_type.into(),
+            )
         };
         match error_result.into() {
             ReturnCode::NoData => break,
             ReturnCode::Success => {
                 let oracle_error_text = match String::from_utf8(Vec::from(&error_message[..])) {
                     Ok(text) => text,
-                    Err(err) => {
-                        format!("Oracle error text is unreadable due
+                    Err(err) => format!(
+                        "Oracle error text is unreadable due
                                 to it not being utf8: {}",
-                                err)
-                            .to_string()
-                    }
+                        err
+                    ).to_string(),
                 };
                 error_record.add_error(error_code, oracle_error_text)
             }
