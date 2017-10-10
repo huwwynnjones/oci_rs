@@ -125,14 +125,9 @@ pub(crate) fn get_error(
         match error_result.into() {
             ReturnCode::NoData => break,
             ReturnCode::Success => {
-                let oracle_error_text = match String::from_utf8(Vec::from(&error_message[..])) {
-                    Ok(text) => text,
-                    Err(err) => format!(
-                        "Oracle error text is unreadable due
-                                to it not being utf8: {}",
-                        err
-                    ).to_string(),
-                };
+                let first_null_byte_index = error_message.iter().position(|&x| x == 0).unwrap();
+                let oracle_error_text = String::from_utf8_lossy(&error_message[0..first_null_byte_index]).into_owned();
+
                 error_record.add_error(error_code, oracle_error_text)
             }
             ReturnCode::Error => {
