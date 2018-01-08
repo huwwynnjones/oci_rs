@@ -211,7 +211,7 @@ impl<'conn> Statement<'conn> {
     /// two options for seeing the results, the first is to call this method to retrieve all the
     /// rows in one go, the second is to iterate through them row by row.
     ///
-    /// Should you go for the first option then the rows will be fetched from once this method is
+    /// Should you go for the first option then the rows will be fetched once this method is
     /// called. They will not be fetched eagerly as part of the `.execute` call, although this is
     /// not apparent to the caller. Once the results are retrieved from the database then they will
     /// be held until either the `Statement` goes out of scope or `.execute` is called again. This
@@ -231,7 +231,15 @@ impl<'conn> Statement<'conn> {
         match self.result_state {
             ResultState::Fetched => (),
             ResultState::NotFetched => {
-                self.result_set = build_result_set(self.statement, self.connection.error())?;
+                let mut rows: Vec<Row> = Vec::new();
+                //self.result_set = build_result_set(self.statement, self.connection.error())?;
+                for row_result in self.lazy_result_set() {
+                    match row_result {
+                        Ok(row) => rows.push(row),
+                        Err(err) => return Err(err),
+                    };
+                }
+                self.result_set = rows;
                 self.results_fetched();
             }
         }
@@ -245,7 +253,7 @@ impl<'conn> Statement<'conn> {
     /// in a pipeline.
     ///
     /// The same comments about pre-fetching configuration applies here as to `.result_set`.
-    ///
+    ///RowIter
     /// # Errors
     ///
     /// This method will not report errors directly however subsequent use of `RowIter` will return
@@ -304,8 +312,13 @@ impl<'conn> Statement<'conn> {
     /// ```
     ///
     pub fn lazy_result_set(&mut self) -> RowIter {
-        self.results_fetched();
-        RowIter { statement: self }
+        match self.result_state {
+            ResultState::Fetched => panic!("Lazy fetch already completed."),
+            ResultState::NotFetched => {
+                self.results_fetched();
+                RowIter { statement: self }
+            }
+        }
     }
 
     /// Commits the changes to the database.
@@ -382,10 +395,12 @@ impl<'stmt> Iterator for RowIter<'stmt> {
 
     fn next(&mut self) -> Option<Result<Row, OciError>> {
         match build_result_row(self.statement.statement, self.statement.connection.error()) {
-            Ok(option) => match option {
-                Some(row) => Some(Ok(row)),
-                None => None,
-            },
+            Ok(option) => {
+                match option {
+                    Some(row) => Some(Ok(row)),
+                    None => None,
+                }
+            }
             Err(err) => Some(Err(err)),
         }
     }
@@ -628,9 +643,9 @@ fn determine_external_data_type(
             }
         }
         OciDataType::SqlChar => Ok(OciDataType::SqlChar),
-        OciDataType::SqlDate | OciDataType::SqlTimestamp | OciDataType::SqlTimestampTz => {
-            Ok(internal_data_type)
-        }
+        OciDataType::SqlDate |
+        OciDataType::SqlTimestamp |
+        OciDataType::SqlTimestampTz => Ok(internal_data_type),
         _ => panic!("Uknown external conversion."),
     }
 }
@@ -794,10 +809,12 @@ fn build_result_row(
     }
 
     match fetch_next_row(statement, error) {
-        Ok(result) => match result {
-            FetchResult::Data => (),
-            FetchResult::NoData => return Ok(None),
-        },
+        Ok(result) => {
+            match result {
+                FetchResult::Data => (),
+                FetchResult::NoData => return Ok(None),
+            }
+        }
         Err(err) => return Err(err),
     }
 
@@ -812,10 +829,12 @@ fn build_result_set(statement: *mut OCIStmt, error: *mut OCIError) -> Result<Vec
     let mut rows = Vec::new();
     loop {
         let row = match build_result_row(statement, error) {
-            Ok(result) => match result {
-                Some(row) => row,
-                None => break,
-            },
+            Ok(result) => {
+                match result {
+                    Some(row) => row,
+                    None => break,
+                }
+            }
             Err(err) => return Err(err),
         };
         rows.push(row)

@@ -62,7 +62,7 @@ impl ErrorRecord {
         }
     }
 
-    /// Get the error records 
+    /// Get the error records
     pub fn error_records(&self) -> &Vec<(i32, String)> {
         &self.records
     }
@@ -126,7 +126,8 @@ pub(crate) fn get_error(
             ReturnCode::NoData => break,
             ReturnCode::Success => {
                 let first_null_byte_index = error_message.iter().position(|&x| x == 0).unwrap();
-                let oracle_error_text = String::from_utf8_lossy(&error_message[0..first_null_byte_index]).into_owned();
+                let oracle_error_text =
+                    String::from_utf8_lossy(&error_message[0..first_null_byte_index]).into_owned();
 
                 error_record.add_error(error_code, oracle_error_text)
             }

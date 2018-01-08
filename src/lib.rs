@@ -525,11 +525,13 @@ mod tests {
     fn create_connection_with_bad_connection_string() {
         let error = match Connection::new(BAD_CONNECTION, USER, PASSWORD) {
             Ok(conn) => panic!("Should not have been able to create a connection, test is wrong."),
-            Err(err) => err, 
+            Err(err) => err,
         };
         let code = match error {
             OciError::Oracle(ref error_record) => &error_record.error_records()[0].0,
-            OciError::Conversion(_) => panic!("Should not have found a conversion error, test is wrong."),
+            OciError::Conversion(_) => {
+                panic!("Should not have found a conversion error, test is wrong.")
+            }
         };
         let tns_listener_error: i32 = 12514;
         assert_eq!(&tns_listener_error, code)
@@ -790,6 +792,81 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
+    fn lazy_multi_row_query_repeat_call() {
+        let conn = match Connection::new(CONNECTION, USER, PASSWORD) {
+            Ok(conn) => conn,
+            Err(err) => panic!("Failed to create a connection: {}", err),
+        };
+        let sql_drop = "DROP TABLE Fish";
+        let mut drop = match conn.create_prepared_statement(sql_drop) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("{}", err),
+        };
+        drop.execute().ok();
+        let sql_create = "CREATE TABLE Fish(FishId integer, Name varchar(20))";
+        let mut create = match conn.create_prepared_statement(sql_create) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("{}", err),
+        };
+        if let Err(err) = create.execute() {
+            panic!("{}", err)
+        }
+        let sql_insert = "INSERT INTO Fish(FishId, Name) VALUES(:id, :name)";
+        let mut insert = match conn.create_prepared_statement(sql_insert) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("{}", err),
+        };
+        if let Err(err) = insert.bind(&[&1, &"Tuna".to_string()]) {
+            panic!("{}", err)
+        }
+        if let Err(err) = insert.execute() {
+            panic!("{}", err)
+        }
+        if let Err(err) = insert.bind(&[&2, &"Salmon".to_string()]) {
+            panic!("{}", err)
+        }
+        if let Err(err) = insert.execute() {
+            panic!("{}", err)
+        }
+        let sql_query = "SELECT * FROM Fish";
+        let mut select = match conn.create_prepared_statement(sql_query) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("{}", err),
+        };
+        if let Err(err) = select.execute() {
+            panic!("{}", err)
+        }
+        let mut result_set = Vec::new();
+        for row_result in select.lazy_result_set() {
+            match row_result {
+                Ok(row) => result_set.push(row),
+                Err(err) => panic!("{}", err),
+            }
+        }
+        if result_set.is_empty() {
+            panic!("Should not have an empty result")
+        }
+        let pairs = [(1, "Tuna"), (2, "Salmon")];
+        for (index, pair) in pairs.iter().enumerate() {
+            let row = &result_set[index];
+            let bird_id: i64 = row[0].value().expect("Not an i64");
+            let bird_name: String = row[1].value().expect("Not a string");
+            assert_eq!(bird_id, pair.0);
+            assert_eq!(bird_name, pair.1);
+        }
+
+        let mut repeat_result_set = Vec::new();
+        for row_result in select.lazy_result_set() {
+            match row_result {
+                Ok(row) => repeat_result_set.push(row),
+                Err(err) => panic!("{}", err),
+            }
+        }
+
+    }
+
+    #[test]
     fn number_conversion() {
         let conn = match Connection::new(CONNECTION, USER, PASSWORD) {
             Ok(conn) => conn,
@@ -854,6 +931,77 @@ mod tests {
             assert_eq!(sweet_name, value.1);
             assert_eq!(sweet_price, value.2);
         }
+    }
+
+    #[test]
+    fn date_in_oracle_binary_format() {
+        let conn = match Connection::new(CONNECTION, USER, PASSWORD) {
+            Ok(conn) => conn,
+            Err(err) => panic!("Failed to create a connection: {}", err),
+        };
+        let sql_drop = "DROP TABLE Birthdays";
+        let mut drop = match conn.create_prepared_statement(sql_drop) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("{}", err),
+        };
+        drop.execute().ok();
+        let sql_create = "CREATE TABLE Birthdays(id INTEGER,
+                                                 Name VARCHAR2(200),
+                                                 Birthday DATE)";
+        let mut create = match conn.create_prepared_statement(sql_create) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("{}", err),
+        };
+
+        if let Err(err) = create.execute() {
+            panic!("Couldn't execute create Birthdays: {}", err)
+        }
+
+        let sql_insert = "INSERT INTO Birthdays(Id, Name, Birthday)
+                          VALUES(:id, :name, :birthday)";
+
+        let mut insert = match conn.create_prepared_statement(sql_insert) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("Cannot create insert for Birthdays: {}", err),
+        };
+
+        let id = 1;
+        let name = "Roger";
+        let birthday = Utc.ymd(2006, 10, 1);
+
+
+        if let Err(err) = insert.bind(&[&id, &name, &birthday]) {
+            panic!("Cannot bind for insert to Birthdays: {}", err)
+        }
+
+        if let Err(err) = insert.execute() {
+            panic!("Couldn't execute insert into Birthdays: {}", err)
+        }
+
+        let sql_select = "SELECT * FROM Birthdays";
+
+        let mut select = match conn.create_prepared_statement(sql_select) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("Couldn't create select for Birthdays: {}", err),
+        };
+
+        if let Err(err) = select.execute() {
+            panic!("Couldn't execute select for Birthdays: {}", err)
+        }
+
+        let result_set = match select.result_set() {
+            Ok(res) => res,
+            Err(err) => panic!("{}", err),
+        };
+
+        if result_set.is_empty() {
+            panic!("Should not have an empty result")
+        }
+
+        let first_row = &result_set[0];
+
+        let date: Date<Utc> = first_row[2].value().unwrap();
+        assert_eq!(date, birthday);
     }
 
     /// Testing various data conversions

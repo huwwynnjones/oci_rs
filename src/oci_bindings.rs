@@ -59,10 +59,12 @@ impl From<c_int> for ReturnCode {
             OCI_NO_DATA => ReturnCode::NoData,
             OCI_INVALID_HANDLE => ReturnCode::InvalidHandle,
             OCI_ERROR => ReturnCode::Error,
-            _ => panic!(format!(
-                "Found an unknown return code: {}, this should not happen.",
-                number
-            )),
+            _ => {
+                panic!(format!(
+                    "Found an unknown return code: {}, this should not happen.",
+                    number
+                ))
+            }
         }
     }
 }
@@ -110,10 +112,12 @@ impl From<c_uint> for HandleType {
             OCI_HTYPE_DEFINE => HandleType::Define,
             OCI_HTYPE_SERVER => HandleType::Server,
             OCI_HTYPE_SESSION => HandleType::Session,
-            _ => panic!(format!(
-                "Found an unknown handle type: {}, this should not happen.",
-                number
-            )),
+            _ => {
+                panic!(format!(
+                    "Found an unknown handle type: {}, this should not happen.",
+                    number
+                ))
+            }
         }
     }
 }
@@ -285,10 +289,12 @@ impl From<c_ushort> for OciDataType {
             SQLT_AFC => OciDataType::SqlChar,
             SQLT_TIMESTAMP => OciDataType::SqlTimestamp,
             SQLT_TIMESTAMP_TZ => OciDataType::SqlTimestampTz,
-            _ => panic!(format!(
-                "Found an unknown OciDataType code, {}, this should not happen.",
-                number
-            )),
+            _ => {
+                panic!(format!(
+                    "Found an unknown OciDataType code, {}, this should not happen.",
+                    number
+                ))
+            }
         }
     }
 }
@@ -348,10 +354,12 @@ impl From<c_uint> for StatementType {
             OCI_STMT_ALTER => StatementType::Alter,
             OCI_STMT_BEGIN => StatementType::Begin,
             OCI_STMT_DECLARE => StatementType::Declare,
-            _ => panic!(format!(
-                "Found an unknown statement type: {}, this should not happen.",
-                number
-            )),
+            _ => {
+                panic!(format!(
+                    "Found an unknown statement type: {}, this should not happen.",
+                    number
+                ))
+            }
         }
     }
 }
@@ -372,16 +380,19 @@ impl From<DescriptorType> for c_uint {
 }
 
 const OCI_FETCH_NEXT: c_ushort = 2;
+const OCI_FETCH_FIRST: c_ushort = 4;
 
 #[derive(Debug)]
 pub enum FetchType {
     Next,
+    First,
 }
 
 impl From<FetchType> for c_ushort {
     fn from(fetch_type: FetchType) -> Self {
         match fetch_type {
             FetchType::Next => OCI_FETCH_NEXT,
+            FetchType::First => OCI_FETCH_FIRST,
         }
     }
 }
