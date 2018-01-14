@@ -232,7 +232,6 @@ impl<'conn> Statement<'conn> {
             ResultState::Fetched => (),
             ResultState::NotFetched => {
                 let mut rows: Vec<Row> = Vec::new();
-                //self.result_set = build_result_set(self.statement, self.connection.error())?;
                 for row_result in self.lazy_result_set() {
                     match row_result {
                         Ok(row) => rows.push(row),
@@ -823,23 +822,6 @@ fn build_result_row(
         sql_values.push(col.create_sql_value()?);
     }
     Ok(Some(Row::new(sql_values)))
-}
-
-fn build_result_set(statement: *mut OCIStmt, error: *mut OCIError) -> Result<Vec<Row>, OciError> {
-    let mut rows = Vec::new();
-    loop {
-        let row = match build_result_row(statement, error) {
-            Ok(result) => {
-                match result {
-                    Some(row) => row,
-                    None => break,
-                }
-            }
-            Err(err) => return Err(err),
-        };
-        rows.push(row)
-    }
-    Ok(rows)
 }
 
 enum FetchResult {

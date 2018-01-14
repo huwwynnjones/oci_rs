@@ -494,7 +494,7 @@ mod oci_bindings;
 mod tests {
     use connection::Connection;
     use oci_error::OciError;
-    use chrono::{Date, DateTime, FixedOffset, TimeZone, Utc};
+    use chrono::{Date, DateTime, FixedOffset, TimeZone, Timelike, Utc};
     const CONNECTION: &str = "localhost:1521/xe";
     const BAD_CONNECTION: &str = "localhost:1521/xp";
     const USER: &str = "oci_rs";
@@ -863,7 +863,6 @@ mod tests {
                 Err(err) => panic!("{}", err),
             }
         }
-
     }
 
     #[test]
@@ -939,12 +938,14 @@ mod tests {
             Ok(conn) => conn,
             Err(err) => panic!("Failed to create a connection: {}", err),
         };
+
         let sql_drop = "DROP TABLE Birthdays";
         let mut drop = match conn.create_prepared_statement(sql_drop) {
             Ok(stmt) => stmt,
             Err(err) => panic!("{}", err),
         };
         drop.execute().ok();
+
         let sql_create = "CREATE TABLE Birthdays(id INTEGER,
                                                  Name VARCHAR2(200),
                                                  Birthday DATE)";
@@ -952,14 +953,12 @@ mod tests {
             Ok(stmt) => stmt,
             Err(err) => panic!("{}", err),
         };
-
         if let Err(err) = create.execute() {
             panic!("Couldn't execute create Birthdays: {}", err)
         }
 
         let sql_insert = "INSERT INTO Birthdays(Id, Name, Birthday)
                           VALUES(:id, :name, :birthday)";
-
         let mut insert = match conn.create_prepared_statement(sql_insert) {
             Ok(stmt) => stmt,
             Err(err) => panic!("Cannot create insert for Birthdays: {}", err),
@@ -969,22 +968,18 @@ mod tests {
         let name = "Roger";
         let birthday = Utc.ymd(2006, 10, 1);
 
-
         if let Err(err) = insert.bind(&[&id, &name, &birthday]) {
             panic!("Cannot bind for insert to Birthdays: {}", err)
         }
-
         if let Err(err) = insert.execute() {
             panic!("Couldn't execute insert into Birthdays: {}", err)
         }
 
         let sql_select = "SELECT * FROM Birthdays";
-
         let mut select = match conn.create_prepared_statement(sql_select) {
             Ok(stmt) => stmt,
             Err(err) => panic!("Couldn't create select for Birthdays: {}", err),
         };
-
         if let Err(err) = select.execute() {
             panic!("Couldn't execute select for Birthdays: {}", err)
         }
@@ -1002,6 +997,94 @@ mod tests {
 
         let date: Date<Utc> = first_row[2].value().unwrap();
         assert_eq!(date, birthday);
+    }
+
+    ///Testing timezone conversions
+    ///
+    #[test]
+    fn timezone_conversions() {
+        let conn = match Connection::new(CONNECTION, USER, PASSWORD) {
+            Ok(conn) => conn,
+            Err(err) => panic!("Failed to create a connection: {}", err),
+        };
+        let sql_drop = "DROP TABLE Times";
+        let mut drop = match conn.create_prepared_statement(sql_drop) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("{}", err),
+        };
+        drop.execute().ok();
+        let sql_create = "CREATE TABLE Times(TimeId INTEGER,
+                                             WorldTime TIMESTAMP(9) WITH TIME ZONE)";
+        let mut create = match conn.create_prepared_statement(sql_create) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("{}", err),
+        };
+        if let Err(err) = create.execute() {
+            panic!("Couldn't execute create Times: {}", err)
+        }
+
+        let sql_insert = "INSERT INTO Times(TimeId, WorldTime)
+                          VALUES(:id, :time)";
+
+        let mut insert = match conn.create_prepared_statement(sql_insert) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("Cannot create insert for Times: {}", err),
+        };
+
+        let utc = Utc.ymd(2018, 01, 05).and_hms(19, 25, 30);
+        let utc_tz = utc.with_timezone(&FixedOffset::east(0));
+        let east_5 = utc.with_timezone(&FixedOffset::east(5 * 3600));
+        let east_5_30 = utc.with_timezone(&FixedOffset::east((5 * 3600) + (30 * 60)));
+        let west_8 = utc.with_timezone(&FixedOffset::west(8 * 3600));
+        let west_8_30 = utc.with_timezone(&FixedOffset::west((8 * 3600) + (30 * 60)));
+
+        let times = [
+            (1, utc_tz),
+            (2, east_5),
+            (3, east_5_30),
+            (4, west_8),
+            (5, west_8_30),
+        ];
+
+        for time in times.iter() {
+            if let Err(err) = insert.bind(&[&time.0, &time.1]) {
+                panic!("Cannot bind for insert to Times: {}", err)
+            }
+
+            if let Err(err) = insert.execute() {
+                panic!("Couldn't insert id {} tz {} into Times: {}", time.0, time.1, err)
+            }
+        }
+
+        let sql_select = "SELECT WorldTime FROM Times
+                          WHERE TimeId = :id";
+
+        let mut select = match conn.create_prepared_statement(sql_select) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("Couldn't create select for Times: {}", err),
+        };
+
+        for time in times.iter() {
+            if let Err(err) = select.bind(&[&time.0]) {
+                panic!("Cannot bind for select for Times: {}", err)
+            }
+
+            if let Err(err) = select.execute() {
+                panic!("Couldn't execute select for Times: {}", err)
+            }
+
+            let result_set = match select.result_set() {
+                Ok(res) => res,
+                Err(err) => panic!("{}", err),
+            };
+            if result_set.is_empty() {
+                panic!("Should not have an empty result")
+            }
+
+            let first_row = &result_set[0];
+            let timestamp_tz: DateTime<FixedOffset> = first_row[0].value().unwrap();
+            assert_eq!(time.1, timestamp_tz);
+        }
     }
 
     /// Testing various data conversions
@@ -1045,7 +1128,8 @@ mod tests {
         let genre = "Sci-fi    ";
         let released = Utc.ymd(2014, 7, 21);
         let updated = Utc::now();
-        let viewed = updated.with_timezone(&FixedOffset::east(10 * 3600));
+        let viewed = updated.with_timezone(&FixedOffset::east(((5 * 3600) + 1800)));
+        println!("viewed {}", viewed.hour());
 
         if let Err(err) = insert.bind(&[&id, &name, &genre, &released, &updated, &viewed]) {
             panic!("Cannot bind for insert to Films: {}", err)
