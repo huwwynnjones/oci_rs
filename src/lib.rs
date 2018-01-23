@@ -52,23 +52,32 @@
 //!
 //! If you are on Linux then you are likely to need to tell the linker where
 //! to find the files. Adding this to my `.bashrc` file worked for me, however the details may vary
-//! according to your distro, mine is [OpenSuse][8].
+//! according to your distro. The below works on [OpenSuse][8].
 //!
 //! ```text
 //! export LIBRARY_PATH=$LIBRARY_PATH:/usr/lib/oracle/12.2/client64/lib/
 //! ```
 //!
-//! This crate has not been tested against Windows and so the setup will be different.
+//! This crate has been briefly tested against Windows but difficulties were faced.
+//! The OCI library is named differently and so updates will be needed in the bindings to make it
+//! compile. Once I can get chance to work out how to even build this using Visual Studio on
+//! Windows, this will be addressed.
 //!
 //! Testing has been done against a local installation of [Oracle 11g Express Edition][9].
 //! In order to run the crate tests then a local database needs to be
 //! available on `localhost:1521/xe` with a user `oci_rs` and password `test`.
 //!
+//! Note that users of Debian based systems will face a lot of bother using Oracle databases
+//! locally. It does not install easily due to lack of official packages and the use of Alien will
+//! not help much. There are lots of complicated instructions available on the internet for how to
+//! get it to work, however the easiest is to run it in a [Docker container][13]. I have switched
+//! to [Ubuntu][12] and have had to resort to using Docker.
+//!
 //! In order to use `oci_rs` add this to your `Cargo.toml`:
 //!
 //! ```toml
 //! [dependencies]
-//! oci_rs = "0.5.0"
+//! oci_rs = "0.6.0"
 //! ```
 //! and this to your crate root:
 //!
@@ -165,6 +174,8 @@
 //! overview/index.html
 //! [10]: http://docs.oracle.com/database/122/LNOCI/toc.htm
 //! [11]: https://docs.oracle.com/database/122/ERRMG/toc.htm
+//! [12]: https://www.ubuntu.com/
+//! [13]: https://github.com/wnameless/docker-oracle-xe-11g
 //!
 
 extern crate byteorder;
@@ -1052,7 +1063,12 @@ mod tests {
             }
 
             if let Err(err) = insert.execute() {
-                panic!("Couldn't insert id {} tz {} into Times: {}", time.0, time.1, err)
+                panic!(
+                    "Couldn't insert id {} tz {} into Times: {}",
+                    time.0,
+                    time.1,
+                    err
+                )
             }
         }
 

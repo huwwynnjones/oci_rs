@@ -26,7 +26,6 @@ pub enum SqlValue {
     Timestamp(DateTime<Utc>, [u8; 11]),
     /// Represents a timestamp with a time zone
     TimestampTz(DateTime<FixedOffset>, [u8; 13]),
-    
 }
 impl SqlValue {
     /// Returns the internal value converting on the way to whichever type implements
@@ -346,7 +345,19 @@ fn create_raw_from_datetime(datetime: &DateTime<Utc>) -> [u8; 11] {
     let minute = convert_minute_to_raw(datetime.minute());
     let second = convert_second_to_raw(datetime.second());
     let nano = convert_nano_to_raw(datetime.nanosecond());
-    [century, year, month, day, hour, minute, second, nano[0], nano[1], nano[2], nano[3]]
+    [
+        century,
+        year,
+        month,
+        day,
+        hour,
+        minute,
+        second,
+        nano[0],
+        nano[1],
+        nano[2],
+        nano[3],
+    ]
 }
 
 /// Creates a `DateTime<FixedOffset>` from the Oracle format.
@@ -367,19 +378,20 @@ fn create_datetime_with_timezone_from_raw(data: &[u8]) -> DateTime<FixedOffset> 
     let hour_in_secs = timezone_hour * 3600;
     let minutes_in_secs = timezone_minute * 60;
     let utc_dt = Utc.ymd((century + year), month, day).and_hms_nano(
-            hour,
-            minute,
-            second,
-            nano,);
+        hour,
+        minute,
+        second,
+        nano,
+    );
     utc_dt.with_timezone(&FixedOffset::east(hour_in_secs + minutes_in_secs))
 }
 
 /// Creates an Oracle byte format from `DateTime<FixedOffset>`.
-/// 
+///
 /// Oracle uses thirteen bytes for a timestamp with timezone.
 /// Oracle holds the UTC time along with an offset. `DateTime<FixedOffset>` will report
 /// back the date and hour as per the local time, so UTC values are needed instead.
-/// 
+///
 fn create_raw_from_datetime_with_timezone(datetime: &DateTime<FixedOffset>) -> [u8; 13] {
     let utc = datetime.with_timezone(&Utc);
     let century = convert_year_to_century_raw(utc.year());
@@ -391,9 +403,23 @@ fn create_raw_from_datetime_with_timezone(datetime: &DateTime<FixedOffset>) -> [
     let second = convert_second_to_raw(utc.second());
     let nano = convert_nano_to_raw(utc.nanosecond());
     let timezone_hour = convert_timezone_seconds_to_hour_raw(datetime.offset().local_minus_utc());
-    let timezone_minutes = convert_timezone_seconds_to_minute_raw(datetime.offset().local_minus_utc());
-    [century, year, month, day, hour, minute, second, nano[0], nano[1], nano[2], nano[3],
-     timezone_hour, timezone_minutes]
+    let timezone_minutes =
+        convert_timezone_seconds_to_minute_raw(datetime.offset().local_minus_utc());
+    [
+        century,
+        year,
+        month,
+        day,
+        hour,
+        minute,
+        second,
+        nano[0],
+        nano[1],
+        nano[2],
+        nano[3],
+        timezone_hour,
+        timezone_minutes,
+    ]
 }
 
 fn convert_century(century_byte: u8) -> i32 {
