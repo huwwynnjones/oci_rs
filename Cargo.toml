@@ -1,6 +1,6 @@
 [package]
 name = "oci_rs"
-version = "0.5.0"
+version = "0.6.0"
 authors = ["Huw Wynn-Jones <huw@huwwynnjones.com>"]
 description = "This crate provides a Rust wrapper to the Oracle Call Interface (OCI) library."
 keywords = ["oracle", "database", "sql", "oci", "db"]
