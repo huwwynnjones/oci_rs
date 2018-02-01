@@ -227,7 +227,7 @@ impl<'conn> Statement<'conn> {
     ///
     /// Any error in the underlying calls to the OCI library will be returned.
     ///
-    pub fn result_set(&mut self) -> Result<&Vec<Row>, OciError> {
+    pub fn result_set(&mut self) -> Result<&[Row], OciError> {
         match self.result_state {
             ResultState::Fetched => (),
             ResultState::NotFetched => {

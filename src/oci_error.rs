@@ -63,7 +63,7 @@ impl ErrorRecord {
     }
 
     /// Get the error records
-    pub fn error_records(&self) -> &Vec<(i32, String)> {
+    pub fn error_records(&self) -> &[(i32, String)] {
         &self.records
     }
 

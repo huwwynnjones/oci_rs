@@ -14,7 +14,7 @@ impl Row {
 
     /// Returns the columns in the row.
     ///
-    pub fn columns(&self) -> &Vec<SqlValue> {
+    pub fn columns(&self) -> &[SqlValue] {
         &self.columns
     }
 }
