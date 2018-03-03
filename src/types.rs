@@ -309,14 +309,14 @@ fn create_datetime_from_raw(data: &[u8]) -> DateTime<Utc> {
     let minute = convert_minute(data[5]);
     let second = convert_second(data[6]);
     if data.len() <= 7 {
-        Utc.ymd((century + year), month, day).and_hms(
+        Utc.ymd(century + year, month, day).and_hms(
             hour,
             minute,
             second,
         )
     } else {
         let nano = convert_nano(&data[7..11]);
-        Utc.ymd((century + year), month, day).and_hms_nano(
+        Utc.ymd(century + year, month, day).and_hms_nano(
             hour,
             minute,
             second,
@@ -377,7 +377,7 @@ fn create_datetime_with_timezone_from_raw(data: &[u8]) -> DateTime<FixedOffset> 
     let timezone_minute = convert_timezone_minute(data[12]);
     let hour_in_secs = timezone_hour * 3600;
     let minutes_in_secs = timezone_minute * 60;
-    let utc_dt = Utc.ymd((century + year), month, day).and_hms_nano(
+    let utc_dt = Utc.ymd(century + year, month, day).and_hms_nano(
         hour,
         minute,
         second,

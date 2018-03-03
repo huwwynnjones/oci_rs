@@ -16,7 +16,7 @@ pub enum OciError {
     Oracle(ErrorRecord),
     /// Picks up any errors that might come during conversion, such as a `Utf8Error`.
     /// It will not represent any Oracle errors.
-    Conversion(Box<Error>),
+    Conversion(Box<Error + Send + Sync>),
 }
 
 impl fmt::Display for OciError {
@@ -63,7 +63,7 @@ impl ErrorRecord {
     }
 
     /// Get the error records
-    pub fn error_records(&self) -> &Vec<(i32, String)> {
+    pub fn error_records(&self) -> &[(i32, String)] {
         &self.records
     }
 
