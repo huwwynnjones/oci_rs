@@ -415,7 +415,8 @@ impl From<OciNumberType> for c_uint {
     }
 }
 
-#[link(name = "clntsh")]
+// Note: The library name is selected in the build script because it is different
+// for each platform.
 extern "C" {
     /// Creates the environment handle. The signature has been changed to only
     /// allow null pointers for the user defined memory parameters. This means

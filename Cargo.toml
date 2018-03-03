@@ -15,3 +15,6 @@ readme = "CRATEREADME.md"
 libc = "0.2.23"
 byteorder = "1.0.0"
 chrono = "0.4.0"
+
+[build-dependencies]
+build-helper = "0.1.1"

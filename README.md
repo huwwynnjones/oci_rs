@@ -20,7 +20,9 @@ according to your distro. The below works on [OpenSuse][8].
 export LIBRARY_PATH=$LIBRARY_PATH:/usr/lib/oracle/12.2/client64/lib/
 ```
 
-This crate has been briefly tested against Windows but difficulties were faced. The OCI library is named differently and so updates will be needed in the bindings to make it compile. Once I can get chance to work out how to even build this using Visual Studio on Windows, this will be addressed.
+You can build this crate on Windows hosts using the `windows-gnu` toolchain. The only requirement for this is that `oci.dll` is on the PATH.
+
+Building against `windows-msvc` has been briefly tested but difficulties were faced. Once I can get chance to work out how to even build this using Visual Studio on Windows, this will be addressed.
 
 Testing has been done against a local installation of [Oracle 11g Express Edition][9].
 In order to run the crate tests then a local database needs to be
