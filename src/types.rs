@@ -2,7 +2,7 @@ use libc::{c_int, c_void};
 use oci_bindings::OciDataType;
 use oci_error::OciError;
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
-use chrono::{Date, DateTime, FixedOffset, TimeZone, Utc, Datelike, Timelike};
+use chrono::{Date, DateTime, Datelike, FixedOffset, TimeZone, Timelike, Utc};
 
 /// The types that support conversion from OCI to Rust types.
 ///
@@ -61,8 +61,7 @@ impl SqlValue {
     ///
     pub(crate) fn as_oci_ptr(&mut self) -> *mut c_void {
         match *self {
-            SqlValue::VarChar(ref s) |
-            SqlValue::Char(ref s) => s.as_ptr() as *mut c_void,
+            SqlValue::VarChar(ref s) | SqlValue::Char(ref s) => s.as_ptr() as *mut c_void,
             SqlValue::Integer(ref mut i) => (i as *mut i64) as *mut c_void,
             SqlValue::Float(ref mut f) => (f as *mut f64) as *mut c_void,
             SqlValue::Null => panic!("Null not handled"),
@@ -79,10 +78,8 @@ impl SqlValue {
     ///
     pub(crate) fn size(&self) -> c_int {
         match *self {
-            SqlValue::VarChar(ref s) |
-            SqlValue::Char(ref s) => s.capacity() as c_int,
-            SqlValue::Integer(..) |
-            SqlValue::Float(..) => 8 as c_int,
+            SqlValue::VarChar(ref s) | SqlValue::Char(ref s) => s.capacity() as c_int,
+            SqlValue::Integer(..) | SqlValue::Float(..) => 8 as c_int,
             SqlValue::Null => panic!("Null not handled"),
             SqlValue::Date(..) => 7 as c_int,
             SqlValue::Timestamp(..) => 11 as c_int,
@@ -113,18 +110,14 @@ impl SqlValue {
     ///
     pub(crate) fn create_from_raw(data: &[u8], sql_type: &OciDataType) -> Result<Self, OciError> {
         match *sql_type {
-            OciDataType::SqlVarChar => {
-                match String::from_utf8(Vec::from(data)) {
-                    Ok(s) => Ok(SqlValue::VarChar(s.trim().to_string())),
-                    Err(err) => Err(OciError::Conversion(Box::new(err))),
-                }
-            }
-            OciDataType::SqlChar => {
-                match String::from_utf8(Vec::from(data)) {
-                    Ok(s) => Ok(SqlValue::Char(s.to_string())),
-                    Err(err) => Err(OciError::Conversion(Box::new(err))),
-                }
-            }
+            OciDataType::SqlVarChar => match String::from_utf8(Vec::from(data)) {
+                Ok(s) => Ok(SqlValue::VarChar(s.trim().to_string())),
+                Err(err) => Err(OciError::Conversion(Box::new(err))),
+            },
+            OciDataType::SqlChar => match String::from_utf8(Vec::from(data)) {
+                Ok(s) => Ok(SqlValue::Char(s.to_string())),
+                Err(err) => Err(OciError::Conversion(Box::new(err))),
+            },
             OciDataType::SqlInt => {
                 let i = LittleEndian::read_i64(data);
                 Ok(SqlValue::Integer(i as i64))
@@ -152,13 +145,11 @@ impl SqlValue {
                     create_raw_from_datetime_with_timezone(&datetime_tz),
                 ))
             }
-            ref x @ _ => {
-                panic!(format!(
-                    "Creating a SqlValue from raw bytes is not implemented yet for: \
+            ref x @ _ => panic!(format!(
+                "Creating a SqlValue from raw bytes is not implemented yet for: \
                  {:?}",
-                    x
-                ))
-            }
+                x
+            )),
         }
     }
 }
@@ -239,8 +230,7 @@ impl FromSqlValue for String {
     //
     fn from_sql_value(sql_value: &SqlValue) -> Option<Self> {
         match *sql_value {
-            SqlValue::VarChar(ref s) |
-            SqlValue::Char(ref s) => Some(s.to_string()),
+            SqlValue::VarChar(ref s) | SqlValue::Char(ref s) => Some(s.to_string()),
             SqlValue::Integer(i) => Some(format!("{}", i)),
             SqlValue::Float(f) => Some(format!("{}", f)),
             SqlValue::Null => Some("null".to_string()),
@@ -309,19 +299,12 @@ fn create_datetime_from_raw(data: &[u8]) -> DateTime<Utc> {
     let minute = convert_minute(data[5]);
     let second = convert_second(data[6]);
     if data.len() <= 7 {
-        Utc.ymd(century + year, month, day).and_hms(
-            hour,
-            minute,
-            second,
-        )
+        Utc.ymd(century + year, month, day)
+            .and_hms(hour, minute, second)
     } else {
         let nano = convert_nano(&data[7..11]);
-        Utc.ymd(century + year, month, day).and_hms_nano(
-            hour,
-            minute,
-            second,
-            nano,
-        )
+        Utc.ymd(century + year, month, day)
+            .and_hms_nano(hour, minute, second, nano)
     }
 }
 
@@ -346,17 +329,7 @@ fn create_raw_from_datetime(datetime: &DateTime<Utc>) -> [u8; 11] {
     let second = convert_second_to_raw(datetime.second());
     let nano = convert_nano_to_raw(datetime.nanosecond());
     [
-        century,
-        year,
-        month,
-        day,
-        hour,
-        minute,
-        second,
-        nano[0],
-        nano[1],
-        nano[2],
-        nano[3],
+        century, year, month, day, hour, minute, second, nano[0], nano[1], nano[2], nano[3]
     ]
 }
 
@@ -377,12 +350,8 @@ fn create_datetime_with_timezone_from_raw(data: &[u8]) -> DateTime<FixedOffset> 
     let timezone_minute = convert_timezone_minute(data[12]);
     let hour_in_secs = timezone_hour * 3600;
     let minutes_in_secs = timezone_minute * 60;
-    let utc_dt = Utc.ymd(century + year, month, day).and_hms_nano(
-        hour,
-        minute,
-        second,
-        nano,
-    );
+    let utc_dt = Utc.ymd(century + year, month, day)
+        .and_hms_nano(hour, minute, second, nano);
     utc_dt.with_timezone(&FixedOffset::east(hour_in_secs + minutes_in_secs))
 }
 

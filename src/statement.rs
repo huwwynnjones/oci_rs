@@ -388,12 +388,10 @@ impl<'stmt> Iterator for RowIter<'stmt> {
 
     fn next(&mut self) -> Option<Result<Row, OciError>> {
         match build_result_row(self.statement.statement, self.statement.connection.error()) {
-            Ok(option) => {
-                match option {
-                    Some(row) => Some(Ok(row)),
-                    None => None,
-                }
-            }
+            Ok(option) => match option {
+                Some(row) => Some(Ok(row)),
+                None => None,
+            },
             Err(err) => Some(Err(err)),
         }
     }
@@ -636,9 +634,9 @@ fn determine_external_data_type(
             }
         }
         OciDataType::SqlChar => Ok(OciDataType::SqlChar),
-        OciDataType::SqlDate |
-        OciDataType::SqlTimestamp |
-        OciDataType::SqlTimestampTz => Ok(internal_data_type),
+        OciDataType::SqlDate | OciDataType::SqlTimestamp | OciDataType::SqlTimestampTz => {
+            Ok(internal_data_type)
+        }
         _ => panic!("Uknown external conversion."),
     }
 }
@@ -794,21 +792,21 @@ fn build_result_row(
     error: *mut OCIError,
 ) -> Result<Option<Row>, OciError> {
     let column_count = number_of_columns(statement, error)?;
-    let columns: Vec<Column> = (1..(column_count + 1)).into_iter()
+    let columns: Vec<Column> = (1..(column_count + 1))
+        .into_iter()
         .map(|position| Column::new(statement, error, position))
         .collect::<Result<Vec<Column>, _>>()?;
 
     match fetch_next_row(statement, error) {
-        Ok(result) => {
-            match result {
-                FetchResult::Data => (),
-                FetchResult::NoData => return Ok(None),
-            }
-        }
+        Ok(result) => match result {
+            FetchResult::Data => (),
+            FetchResult::NoData => return Ok(None),
+        },
         Err(err) => return Err(err),
     }
 
-    let sql_values: Result<Vec<_>, _> = columns.into_iter()
+    let sql_values: Result<Vec<_>, _> = columns
+        .into_iter()
         .map(|col| col.create_sql_value())
         .collect();
 

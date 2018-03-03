@@ -57,7 +57,9 @@
 //! ```text
 //! export LIBRARY_PATH=$LIBRARY_PATH:/usr/lib/oracle/12.2/client64/lib/
 //! ```
-//!
+//! You can build this crate on Windows hosts using the `windows-gnu` toolchain. The only requirement 
+//! for this is that `oci.dll` is on the PATH.
+//! 
 //! This crate has been briefly tested against Windows but difficulties were faced.
 //! The OCI library is named differently and so updates will be needed in the bindings to make it
 //! compile. Once I can get chance to work out how to even build this using Visual Studio on
@@ -77,7 +79,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! oci_rs = "0.6.0"
+//! oci_rs = "0.7.0"
 //! ```
 //! and this to your crate root:
 //!
@@ -499,7 +501,6 @@ pub mod row;
 ///
 pub mod statement;
 mod oci_bindings;
-
 
 #[cfg(test)]
 mod tests {
@@ -1065,9 +1066,7 @@ mod tests {
             if let Err(err) = insert.execute() {
                 panic!(
                     "Couldn't insert id {} tz {} into Times: {}",
-                    time.0,
-                    time.1,
-                    err
+                    time.0, time.1, err
                 )
             }
         }
