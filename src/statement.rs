@@ -227,18 +227,12 @@ impl<'conn> Statement<'conn> {
     ///
     /// Any error in the underlying calls to the OCI library will be returned.
     ///
-    pub fn result_set(&mut self) -> Result<&Vec<Row>, OciError> {
+    pub fn result_set(&mut self) -> Result<&[Row], OciError> {
         match self.result_state {
             ResultState::Fetched => (),
             ResultState::NotFetched => {
-                let mut rows: Vec<Row> = Vec::new();
-                for row_result in self.lazy_result_set() {
-                    match row_result {
-                        Ok(row) => rows.push(row),
-                        Err(err) => return Err(err),
-                    };
-                }
-                self.result_set = rows;
+                let rows: Result<Vec<Row>, _> = self.lazy_result_set().collect();
+                self.result_set = rows?;
                 self.results_fetched();
             }
         }
@@ -800,12 +794,9 @@ fn build_result_row(
     error: *mut OCIError,
 ) -> Result<Option<Row>, OciError> {
     let column_count = number_of_columns(statement, error)?;
-    let mut columns = Vec::new();
-
-    for position in 1..(column_count + 1) {
-        let column = Column::new(statement, error, position)?;
-        columns.push(column)
-    }
+    let columns: Vec<Column> = (1..(column_count + 1)).into_iter()
+        .map(|position| Column::new(statement, error, position))
+        .collect::<Result<Vec<Column>, _>>()?;
 
     match fetch_next_row(statement, error) {
         Ok(result) => {
@@ -817,11 +808,11 @@ fn build_result_row(
         Err(err) => return Err(err),
     }
 
-    let mut sql_values = Vec::new();
-    for col in columns {
-        sql_values.push(col.create_sql_value()?);
-    }
-    Ok(Some(Row::new(sql_values)))
+    let sql_values: Result<Vec<_>, _> = columns.into_iter()
+        .map(|col| col.create_sql_value())
+        .collect();
+
+    Ok(Some(Row::new(sql_values?)))
 }
 
 enum FetchResult {
