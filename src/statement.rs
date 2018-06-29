@@ -248,10 +248,12 @@ impl<'conn> Statement<'conn> {
     ///
     pub fn set_prefetch(&mut self, nmb_of_rows: i32) -> Result<(), OciError> {
         let size: c_uint = 0;
+        let rows: c_uint = nmb_of_rows as c_uint;
+        let rows_ptr: *const c_uint = &rows;
         set_handle_attribute(
             self.statement as *mut c_void,
             HandleType::Statement,
-            nmb_of_rows as *mut c_void,
+            rows_ptr as *mut c_void,
             size,
             AttributeType::PrefetchRows,
             self.connection.error(),

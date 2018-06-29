@@ -786,6 +786,10 @@ mod tests {
             panic!("{}", err)
         }
 
+        if let Err(err) = select.set_prefetch(5) {
+            panic!("{}", err)
+        }
+
         let result_set = match select.result_set() {
             Ok(res) => res,
             Err(err) => panic!("{}", err),
