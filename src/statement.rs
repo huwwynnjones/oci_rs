@@ -1,14 +1,16 @@
-use oci_bindings::{AttributeType, DescriptorType, EnvironmentMode, FetchType, HandleType,
-                   OCIAttrGet, OCIBind, OCIBindByPos, OCIDefine, OCIDefineByPos,
-                   OCIDescriptorFree, OCIError, OCIParam, OCIParamGet, OCISnapshot, OCIStmt,
-                   OCIStmtExecute, OCIStmtFetch2, OCIStmtPrepare2, OCIStmtRelease, OCITransCommit,
-                   OciDataType, ReturnCode, StatementType, SyntaxType};
-use oci_error::{get_error, OciError};
-use types::{SqlValue, ToSqlValue};
-use std::ptr;
+use common::set_handle_attribute;
 use connection::Connection;
-use row::Row;
 use libc::{c_int, c_schar, c_short, c_uint, c_ushort, c_void};
+use oci_bindings::{
+    AttributeType, DescriptorType, EnvironmentMode, FetchType, HandleType, OCIAttrGet, OCIBind,
+    OCIBindByPos, OCIDefine, OCIDefineByPos, OCIDescriptorFree, OCIError, OCIParam, OCIParamGet,
+    OCISnapshot, OCIStmt, OCIStmtExecute, OCIStmtFetch2, OCIStmtPrepare2, OCIStmtRelease,
+    OCITransCommit, OciDataType, ReturnCode, StatementType, SyntaxType,
+};
+use oci_error::{get_error, OciError};
+use row::Row;
+use std::ptr;
+use types::{SqlValue, ToSqlValue};
 
 #[derive(Debug)]
 enum ResultState {
@@ -68,7 +70,7 @@ impl<'conn> Statement<'conn> {
     ///
     /// # Examples
     ///
-    /// Here are various ways to bind paramters:
+    /// Here are various ways to bind parameters:
     ///
     /// ```rust
     /// use oci_rs::connection::Connection;
@@ -218,11 +220,6 @@ impl<'conn> Statement<'conn> {
     /// way, repeated calls to `.result_set` will be the same. If there are no data then an empty
     /// `Vec<Row>` will be returned.
     ///
-    /// The OCI library internally manages the number of rows that are pre-fetched from the
-    /// database. This can be tweaked at the OCI level, but is not currently available in this
-    /// crate. The OCI default is one row, so for each call to the database two rows are retrieved,
-    /// thus half the number of round trips needed.
-    ///
     /// # Errors
     ///
     /// Any error in the underlying calls to the OCI library will be returned.
@@ -239,6 +236,30 @@ impl<'conn> Statement<'conn> {
         Ok(&self.result_set)
     }
 
+    /// Set the number of rows that will be prefetched from the database.
+    ///
+    /// The OCI library internally manages the number of rows that are pre-fetched from the
+    /// database. This can be tweaked. The OCI default is one row, so for each call to the
+    /// database two rows are retrieved, thus half the number of round trips needed.
+    ///
+    /// # Errors
+    ///
+    /// Any error in the underlying calls to the OCI library will be returned.
+    ///
+    pub fn set_prefetch(&mut self, nmb_of_rows: i32) -> Result<(), OciError> {
+        let size: c_uint = 0;
+        set_handle_attribute(
+            self.statement as *mut c_void,
+            HandleType::Statement,
+            nmb_of_rows as *mut c_void,
+            size,
+            AttributeType::PrefetchRows,
+            self.connection.error(),
+            "Setting prefetch rows in statement handle",
+        )?;
+        Ok(())
+    }
+
     /// Returns the results of a `SELECT` statement row by row via the `RowIter` iterator.
     ///
     /// The `RowIter` returned can then be used to run through the rows of data in the result set.
@@ -246,7 +267,7 @@ impl<'conn> Statement<'conn> {
     /// in a pipeline.
     ///
     /// The same comments about pre-fetching configuration applies here as to `.result_set`.
-    ///RowIter
+    ///
     /// # Errors
     ///
     /// This method will not report errors directly however subsequent use of `RowIter` will return

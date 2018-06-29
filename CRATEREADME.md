@@ -34,7 +34,7 @@ In order to use `oci_rs` add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oci_rs = "0.6.0"
+oci_rs = "0.7.0"
 ```
 and this to your crate root:
 
@@ -121,6 +121,6 @@ assert_eq!(price, 23.45);
 [9]: http://www.oracle.com/technetwork/database/database-technologies/express-edition/overview/index.html
 [10]: http://docs.oracle.com/database/122/LNOCI/toc.htm
 [11]: https://docs.oracle.com/database/122/ERRMG/toc.htm
-[12]: https://docs.rs/oci_rs/0.3.1/oci_rs/
+[12]: https://docs.rs/oci_rs/
 [13]: https://www.ubuntu.com/
 [14]: https://github.com/wnameless/docker-oracle-xe-11g

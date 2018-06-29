@@ -1,8 +1,8 @@
+use byteorder::{BigEndian, ByteOrder, LittleEndian};
+use chrono::{Date, DateTime, Datelike, FixedOffset, TimeZone, Timelike, Utc};
 use libc::{c_int, c_void};
 use oci_bindings::OciDataType;
 use oci_error::OciError;
-use byteorder::{BigEndian, ByteOrder, LittleEndian};
-use chrono::{Date, DateTime, Datelike, FixedOffset, TimeZone, Timelike, Utc};
 
 /// The types that support conversion from OCI to Rust types.
 ///
@@ -329,7 +329,7 @@ fn create_raw_from_datetime(datetime: &DateTime<Utc>) -> [u8; 11] {
     let second = convert_second_to_raw(datetime.second());
     let nano = convert_nano_to_raw(datetime.nanosecond());
     [
-        century, year, month, day, hour, minute, second, nano[0], nano[1], nano[2], nano[3]
+        century, year, month, day, hour, minute, second, nano[0], nano[1], nano[2], nano[3],
     ]
 }
 

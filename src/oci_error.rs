@@ -1,9 +1,9 @@
-use std::error::Error;
-use std::error;
-use std::fmt;
-use std::ptr;
 use libc::{c_int, c_uchar, c_uint, c_void};
 use oci_bindings::{HandleType, OCIErrorGet, ReturnCode};
+use std::error;
+use std::error::Error;
+use std::fmt;
+use std::ptr;
 
 const MAX_ERROR_MESSAGE_SIZE: usize = 3024;
 

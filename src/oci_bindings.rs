@@ -138,6 +138,7 @@ const OCI_ATTR_PRECISION: c_uint = 5;
 const OCI_ATTR_SCALE: c_uint = 6;
 const OCI_ATTR_SERVER: c_uint = 6;
 const OCI_ATTR_SESSION: c_uint = 7;
+const OCI_ATTR_PREFETCH_ROWS: c_uint = 11;
 const OCI_ATTR_PARAM_COUNT: c_uint = 18;
 const OCI_ATTR_USERNAME: c_uint = 22;
 const OCI_ATTR_PASSWORD: c_uint = 23;
@@ -152,6 +153,7 @@ pub enum AttributeType {
     Scale,
     Server,
     Session,
+    PrefetchRows,
     ParameterCount,
     UserName,
     Password,
@@ -168,6 +170,7 @@ impl From<AttributeType> for c_uint {
             AttributeType::Scale => OCI_ATTR_SCALE,
             AttributeType::Server => OCI_ATTR_SERVER,
             AttributeType::Session => OCI_ATTR_SESSION,
+            AttributeType::PrefetchRows => OCI_ATTR_PREFETCH_ROWS,
             AttributeType::ParameterCount => OCI_ATTR_PARAM_COUNT,
             AttributeType::UserName => OCI_ATTR_USERNAME,
             AttributeType::Password => OCI_ATTR_PASSWORD,

@@ -57,9 +57,9 @@
 //! ```text
 //! export LIBRARY_PATH=$LIBRARY_PATH:/usr/lib/oracle/12.2/client64/lib/
 //! ```
-//! You can build this crate on Windows hosts using the `windows-gnu` toolchain. The only requirement 
+//! You can build this crate on Windows hosts using the `windows-gnu` toolchain. The only requirement
 //! for this is that `oci.dll` is on the PATH.
-//! 
+//!
 //! This crate has been briefly tested against Windows but difficulties were faced.
 //! The OCI library is named differently and so updates will be needed in the bindings to make it
 //! compile. Once I can get chance to work out how to even build this using Visual Studio on
@@ -387,6 +387,8 @@ pub mod types;
 ///
 pub mod row;
 
+mod common;
+mod oci_bindings;
 /// SQL statements run against the database.
 ///
 /// `Statement`s are created to run a SQL Statement against a database. They prepare the statement
@@ -500,13 +502,12 @@ pub mod row;
 /// (or ignored as in this case) but it is added as a reminder that iterator methods can be used.
 ///
 pub mod statement;
-mod oci_bindings;
 
 #[cfg(test)]
 mod tests {
+    use chrono::{Date, DateTime, FixedOffset, TimeZone, Timelike, Utc};
     use connection::Connection;
     use oci_error::OciError;
-    use chrono::{Date, DateTime, FixedOffset, TimeZone, Timelike, Utc};
     const CONNECTION: &str = "localhost:1521/xe";
     const BAD_CONNECTION: &str = "localhost:1521/xp";
     const USER: &str = "oci_rs";
@@ -735,6 +736,68 @@ mod tests {
             let flower_name: String = row[1].value().expect("Not a string");
             assert_eq!(flower_id, pair.0);
             assert_eq!(flower_name, pair.1);
+        }
+    }
+
+    #[test]
+    fn multi_row_query_with_prefetch() {
+        let conn = match Connection::new(CONNECTION, USER, PASSWORD) {
+            Ok(conn) => conn,
+            Err(err) => panic!("Failed to create a connection: {}", err),
+        };
+        let sql_drop = "DROP TABLE Words";
+        let mut drop = match conn.create_prepared_statement(sql_drop) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("{}", err),
+        };
+        drop.execute().ok();
+        let sql_create = "CREATE TABLE Words(Word varchar(100))";
+        let mut create = match conn.create_prepared_statement(sql_create) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("{}", err),
+        };
+        if let Err(err) = create.execute() {
+            panic!("{}", err)
+        }
+        let sql_insert = "INSERT INTO Words(Word) VALUES(:word)";
+        let mut insert = match conn.create_prepared_statement(sql_insert) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("{}", err),
+        };
+
+        let words = ["Podgy", "Rumpy", "Wiggle", "Ponder", "Spice", "Constable"];
+
+        for word in words.iter() {
+            if let Err(err) = insert.bind(&[word]) {
+                panic!("{}", err)
+            }
+            if let Err(err) = insert.execute() {
+                panic!("{}", err)
+            }
+        }
+
+        let sql_query = "SELECT * FROM Words";
+        let mut select = match conn.create_prepared_statement(sql_query) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("{}", err),
+        };
+
+        if let Err(err) = select.execute() {
+            panic!("{}", err)
+        }
+
+        let result_set = match select.result_set() {
+            Ok(res) => res,
+            Err(err) => panic!("{}", err),
+        };
+
+        if result_set.is_empty() {
+            panic!("Should not have an empty result")
+        }
+
+        for row in result_set {
+            let word: String = row[0].value().unwrap();
+            assert!(words.contains(&word.as_ref()));
         }
     }
 
@@ -1143,7 +1206,7 @@ mod tests {
         let genre = "Sci-fi    ";
         let released = Utc.ymd(2014, 7, 21);
         let updated = Utc::now();
-        let viewed = updated.with_timezone(&FixedOffset::east(((5 * 3600) + 1800)));
+        let viewed = updated.with_timezone(&FixedOffset::east((5 * 3600) + 1800));
         println!("viewed {}", viewed.hour());
 
         if let Err(err) = insert.bind(&[&id, &name, &genre, &released, &updated, &viewed]) {
