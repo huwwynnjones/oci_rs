@@ -6,7 +6,7 @@ use oci_error::OciError;
 
 /// The types that support conversion from OCI to Rust types.
 ///
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum SqlValue {
     /// Anything specified as `VARCHAR` or `VARCHAR2` will end up here.
     VarChar(String),

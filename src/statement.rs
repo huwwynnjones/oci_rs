@@ -120,14 +120,18 @@ impl<'conn> Statement<'conn> {
     /// parameters, however this is not yet available through this crate.
     ///
     pub fn bind(&mut self, params: &[&ToSqlValue]) -> Result<(), OciError> {
+        // clear out previous bind parameters 
         self.values.clear();
+        
+        // ensure that the vec is large enough to hold all the parameters
+        // otherwise the vec will re-size, re-allocated and the addresses will change
+        self.values.reserve(params.len());
 
         for (index, param) in params.iter().enumerate() {
             let sql_value = param.to_sql_value();
             self.values.push(sql_value);
             let binding: *mut OCIBind = ptr::null_mut();
             self.bindings.push(binding);
-
             let position = (index + 1) as c_uint;
             let null_mut_ptr = ptr::null_mut();
             let indp = null_mut_ptr;
