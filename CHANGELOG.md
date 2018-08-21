@@ -1,5 +1,9 @@
 # Change Log
 
+## v0.8.0
+
+Added support for setting the pre-fetch value and fixed a bug that caused bind parameters to be read from wrong memory addresses.
+
 ## v0.7.0
 
 Merges in support for windows via the `windows-gnu` toolchain along with some tidying up 

@@ -120,11 +120,11 @@ impl<'conn> Statement<'conn> {
     /// parameters, however this is not yet available through this crate.
     ///
     pub fn bind(&mut self, params: &[&ToSqlValue]) -> Result<(), OciError> {
-        // clear out previous bind parameters 
+        // clear out previous bind parameters
         self.values.clear();
-        
+
         // ensure that the vec is large enough to hold all the parameters
-        // otherwise the vec will re-size, re-allocated and the addresses will change
+        // otherwise the vec will re-size, re-allocate and the addresses will change
         self.values.reserve(params.len());
 
         for (index, param) in params.iter().enumerate() {
