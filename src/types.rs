@@ -129,7 +129,7 @@ impl SqlValue {
             OciDataType::SqlDate => {
                 let datetime = create_datetime_from_raw(data);
                 let date = datetime.date();
-                Ok(SqlValue::Date(date, create_raw_from_date(&date)))
+                Ok(SqlValue::Date(date, create_raw_from_date(date)))
             }
             OciDataType::SqlTimestamp => {
                 let datetime = create_datetime_from_raw(data);
@@ -145,7 +145,7 @@ impl SqlValue {
                     create_raw_from_datetime_with_timezone(&datetime_tz),
                 ))
             }
-            ref x @ _ => panic!(format!(
+            ref x => panic!(format!(
                 "Creating a SqlValue from raw bytes is not implemented yet for: \
                  {:?}",
                 x
@@ -189,19 +189,19 @@ impl ToSqlValue for f64 {
 
 impl ToSqlValue for Date<Utc> {
     fn to_sql_value(&self) -> SqlValue {
-        SqlValue::Date(self.clone(), create_raw_from_date(self))
+        SqlValue::Date(*self, create_raw_from_date(*self))
     }
 }
 
 impl ToSqlValue for DateTime<Utc> {
     fn to_sql_value(&self) -> SqlValue {
-        SqlValue::Timestamp(self.clone(), create_raw_from_datetime(self))
+        SqlValue::Timestamp(*self, create_raw_from_datetime(self))
     }
 }
 
 impl ToSqlValue for DateTime<FixedOffset> {
     fn to_sql_value(&self) -> SqlValue {
-        SqlValue::TimestampTz(self.clone(), create_raw_from_datetime_with_timezone(self))
+        SqlValue::TimestampTz(*self, create_raw_from_datetime_with_timezone(self))
     }
 }
 
@@ -308,7 +308,7 @@ fn create_datetime_from_raw(data: &[u8]) -> DateTime<Utc> {
     }
 }
 
-fn create_raw_from_date(date: &Date<Utc>) -> [u8; 7] {
+fn create_raw_from_date(date: Date<Utc>) -> [u8; 7] {
     let century = convert_year_to_century_raw(date.year());
     let year = convert_year_to_raw(date.year());
     let month = date.month() as u8;
@@ -393,7 +393,7 @@ fn create_raw_from_datetime_with_timezone(datetime: &DateTime<FixedOffset>) -> [
 }
 
 fn convert_century(century_byte: u8) -> i32 {
-    let number = century_byte as i32;
+    let number = i32::from(century_byte);
     (number - 100) * 100
 }
 
@@ -403,7 +403,7 @@ fn convert_year_to_century_raw(year: i32) -> u8 {
 }
 
 fn convert_year(year_byte: u8) -> i32 {
-    let number = year_byte as i32;
+    let number = i32::from(year_byte);
     number - 100
 }
 
@@ -414,17 +414,15 @@ fn convert_year_to_raw(year: i32) -> u8 {
 }
 
 fn convert_month(month_byte: u8) -> u32 {
-    let number = month_byte as u32;
-    number
+    u32::from(month_byte)
 }
 
 fn convert_day(day_byte: u8) -> u32 {
-    let number = day_byte as u32;
-    number
+    u32::from(day_byte)
 }
 
 fn convert_hour(hour_byte: u8) -> u32 {
-    let number = hour_byte as u32;
+    let number = u32::from(hour_byte);
     number - 1
 }
 
@@ -434,7 +432,7 @@ fn convert_hour_to_raw(hour: u32) -> u8 {
 }
 
 fn convert_minute(minute_byte: u8) -> u32 {
-    let number = minute_byte as u32;
+    let number = u32::from(minute_byte);
     number - 1
 }
 
@@ -444,7 +442,7 @@ fn convert_minute_to_raw(minute: u32) -> u8 {
 }
 
 fn convert_second(second_byte: u8) -> u32 {
-    let number = second_byte as u32;
+    let number = u32::from(second_byte);
     number - 1
 }
 
@@ -454,8 +452,7 @@ fn convert_second_to_raw(second: u32) -> u8 {
 }
 
 fn convert_nano(nano_bytes: &[u8]) -> u32 {
-    let number = BigEndian::read_u32(nano_bytes);
-    number
+    BigEndian::read_u32(nano_bytes)
 }
 
 fn convert_nano_to_raw(nano: u32) -> [u8; 4] {
@@ -467,7 +464,7 @@ fn convert_nano_to_raw(nano: u32) -> [u8; 4] {
 /// Converts a byte into a timezone hour, as per the Oracle `Timestamp with time zone` format.
 ///
 fn convert_timezone_hour(timezone_hour_byte: u8) -> i32 {
-    let number = timezone_hour_byte as i32;
+    let number = i32::from(timezone_hour_byte);
     number - 20
 }
 
@@ -480,7 +477,7 @@ fn convert_timezone_seconds_to_hour_raw(timezone_seconds: i32) -> u8 {
 /// Converts a byte into timezone minutes, as per the Oracle `Timestamp with time zone` format.
 ///
 fn convert_timezone_minute(timezone_minute_byte: u8) -> i32 {
-    let number = timezone_minute_byte as i32;
+    let number = i32::from(timezone_minute_byte);
     number - 60
 }
 

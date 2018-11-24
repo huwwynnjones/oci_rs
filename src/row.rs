@@ -9,7 +9,7 @@ pub struct Row {
 }
 impl Row {
     pub(crate) fn new(columns: Vec<SqlValue>) -> Row {
-        Row { columns: columns }
+        Row { columns }
     }
 
     /// Returns the columns in the row.

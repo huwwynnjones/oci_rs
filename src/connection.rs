@@ -61,11 +61,11 @@ impl Connection {
         start_session(service, session, error)?;
         set_session_in_service(service, session, error)?;
         Ok(Connection {
-            environment: environment,
-            server: server,
-            error: error,
-            service: service,
-            session: session,
+            environment,
+            server,
+            error,
+            service,
+            session,
         })
     }
 
@@ -252,7 +252,7 @@ fn set_user_name_in_session(
         HandleType::Session,
         user_name_ptr as *mut c_void,
         user_name_len,
-        AttributeType::UserName.into(),
+        AttributeType::UserName,
         error,
         "Setting user name",
     )?;
@@ -273,7 +273,7 @@ fn set_password_in_session(
         HandleType::Session,
         password_ptr as *mut c_void,
         password_len,
-        AttributeType::Password.into(),
+        AttributeType::Password,
         error,
         "Setting password",
     )?;
@@ -289,7 +289,7 @@ fn set_session_in_service(
     let size: c_uint = 0;
     set_handle_attribute(
         service as *mut c_void,
-        HandleType::Service.into(),
+        HandleType::Service,
         session as *mut c_void,
         size,
         AttributeType::Session,

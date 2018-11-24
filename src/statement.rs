@@ -51,8 +51,8 @@ impl<'conn> Statement<'conn> {
     pub(crate) fn new(connection: &'conn Connection, sql: &str) -> Result<Self, OciError> {
         let statement = prepare_statement(connection, sql)?;
         Ok(Statement {
-            connection: connection,
-            statement: statement,
+            connection,
+            statement,
             bindings: Vec::new(),
             values: Vec::new(),
             result_set: Vec::new(),
@@ -588,7 +588,7 @@ fn define_output_parameter(
             error,
             position,
             buffer_ptr,
-            buffer_size as c_int,
+            i32::from(buffer_size),
             data_type.into(),
             indp_ptr as *mut c_void,
             rlenp,
@@ -819,8 +819,7 @@ fn build_result_row(
     error: *mut OCIError,
 ) -> Result<Option<Row>, OciError> {
     let column_count = number_of_columns(statement, error)?;
-    let columns: Vec<Column> = (1..(column_count + 1))
-        .into_iter()
+    let columns: Vec<Column> = (1..=column_count)
         .map(|position| Column::new(statement, error, position))
         .collect::<Result<Vec<Column>, _>>()?;
 
