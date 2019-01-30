@@ -1,12 +1,13 @@
-use common::set_handle_attribute;
-use libc::{c_int, c_uint, c_void, size_t};
-use oci_bindings::{
+use crate::common::set_handle_attribute;
+use crate::oci_bindings::{
     AttributeType, CredentialsType, EnvironmentMode, HandleType, OCIEnv, OCIEnvCreate, OCIError,
     OCIHandleAlloc, OCIHandleFree, OCIServer, OCIServerAttach, OCIServerDetach, OCISession,
     OCISessionBegin, OCISessionEnd, OCISvcCtx, ReturnCode,
 };
-use oci_error::{get_error, OciError};
-use statement::Statement;
+use crate::oci_error::{get_error, OciError};
+use crate::statement::Statement;
+use libc::{c_int, c_uint, c_void, size_t};
+use log::{info,error};
 use std::ptr;
 
 /// Represents a connection to a database.
@@ -141,7 +142,7 @@ impl Drop for Connection {
 
         match session_end_result.into() {
             ReturnCode::Success => (),
-            _ => println!("Could not end user session"), //log instead in future
+            _ => error!("Could not end user session")
         }
 
         let disconnect_result =
@@ -149,7 +150,7 @@ impl Drop for Connection {
 
         match disconnect_result.into() {
             ReturnCode::Success => (),
-            _ => println!("Could not disconnect"), //log instead in future
+            _ => error!("Could not disconnect")
         }
 
         let free_result = unsafe {
@@ -161,7 +162,7 @@ impl Drop for Connection {
 
         match free_result.into() {
             ReturnCode::Success => (),
-            _ => panic!("Could not free the handles in Connection"),
+            _ => error!("Could not free the handles in Connection"),
         }
     }
 }
@@ -370,6 +371,17 @@ fn start_session(
 
     match session_result.into() {
         ReturnCode::Success => Ok(()),
+        ReturnCode::SuccessWithInfo => {
+            info!(
+                "{}",
+                get_error(
+                    error as *mut c_void,
+                    HandleType::Error,
+                    "Starting user session",
+                )
+            );
+            Ok(())
+        }
         _ => Err(get_error(
             error as *mut c_void,
             HandleType::Error,

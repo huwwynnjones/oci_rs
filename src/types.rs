@@ -1,8 +1,8 @@
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
 use chrono::{Date, DateTime, Datelike, FixedOffset, TimeZone, Timelike, Utc};
 use libc::{c_int, c_void};
-use oci_bindings::OciDataType;
-use oci_error::OciError;
+use crate::oci_bindings::OciDataType;
+use crate::oci_error::OciError;
 
 /// The types that support conversion from OCI to Rust types.
 ///

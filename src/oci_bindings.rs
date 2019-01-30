@@ -40,6 +40,7 @@ impl From<EnvironmentMode> for c_uint {
 }
 
 const OCI_SUCCESS: c_int = 0;
+const OCI_SUCCESS_WITH_INFO: c_int = 1;
 const OCI_ERROR: c_int = -1;
 const OCI_NO_DATA: c_int = 100;
 const OCI_INVALID_HANDLE: c_int = -2;
@@ -47,6 +48,7 @@ const OCI_INVALID_HANDLE: c_int = -2;
 #[derive(Debug)]
 pub enum ReturnCode {
     Success,
+    SuccessWithInfo,
     Error,
     NoData,
     InvalidHandle,
@@ -56,6 +58,7 @@ impl From<c_int> for ReturnCode {
     fn from(number: c_int) -> Self {
         match number {
             OCI_SUCCESS => ReturnCode::Success,
+            OCI_SUCCESS_WITH_INFO => ReturnCode::SuccessWithInfo,
             OCI_NO_DATA => ReturnCode::NoData,
             OCI_INVALID_HANDLE => ReturnCode::InvalidHandle,
             OCI_ERROR => ReturnCode::Error,

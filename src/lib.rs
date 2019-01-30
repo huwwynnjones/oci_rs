@@ -180,10 +180,6 @@
 //! [13]: https://github.com/wnameless/docker-oracle-xe-11g
 //!
 
-extern crate byteorder;
-extern crate chrono;
-extern crate libc;
-
 /// Connections to a database.
 ///
 /// The current implementation only supports a simple connection to the database. There is
@@ -217,6 +213,7 @@ extern crate libc;
 ///     Err(err) => panic!("Failed to create a statement: {}", err),
 /// };
 /// ```
+///
 ///
 pub mod connection;
 
@@ -506,8 +503,8 @@ pub mod statement;
 #[cfg(test)]
 mod tests {
     use chrono::{Date, DateTime, FixedOffset, TimeZone, Timelike, Utc};
-    use connection::Connection;
-    use oci_error::OciError;
+    use crate::connection::Connection;
+    use crate::oci_error::OciError;
     const CONNECTION: &str = "localhost:1521/xe";
     const BAD_CONNECTION: &str = "localhost:1521/xp";
     const USER: &str = "oci_rs";
@@ -1262,5 +1259,34 @@ mod tests {
 
         let timestamp_tz_as_string: String = first_row[5].value().unwrap();
         assert_eq!(timestamp_tz_as_string, viewed.to_string());
+    }
+
+    /// Test Blob and Clob
+    /// 
+    #[test]
+    fn lob_fields(){
+        let conn = match Connection::new(CONNECTION, USER, PASSWORD) {
+            Ok(conn) => conn,
+            Err(err) => panic!("Failed to create a connection: {}", err),
+        };
+        let sql_drop = "DROP TABLE big_objects";
+        let mut drop = match conn.create_prepared_statement(sql_drop) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("{}", err),
+        };
+        drop.execute().ok();
+        let sql_create = "CREATE TABLE big_objects(ObjectId INTEGER,
+                                                   Binary BLOB)";
+        let mut create = match conn.create_prepared_statement(sql_create) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("{}", err),
+        };
+        if let Err(err) = create.execute() {
+            panic!("Couldn't execute create Films: {}", err)
+        }
+
+        let id = 1;
+        let binary : [u8; 15] = [0; 15];
+
     }
 }

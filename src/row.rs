@@ -1,5 +1,5 @@
 use std::ops::Index;
-use types::SqlValue;
+use crate::types::SqlValue;
 
 /// Represents a row of data returned from a SQL query.
 ///

@@ -1,16 +1,16 @@
-use common::set_handle_attribute;
-use connection::Connection;
+use crate::common::set_handle_attribute;
+use crate::connection::Connection;
 use libc::{c_int, c_schar, c_short, c_uint, c_ushort, c_void};
-use oci_bindings::{
+use crate::oci_bindings::{
     AttributeType, DescriptorType, EnvironmentMode, FetchType, HandleType, OCIAttrGet, OCIBind,
     OCIBindByPos, OCIDefine, OCIDefineByPos, OCIDescriptorFree, OCIError, OCIParam, OCIParamGet,
     OCISnapshot, OCIStmt, OCIStmtExecute, OCIStmtFetch2, OCIStmtPrepare2, OCIStmtRelease,
     OCITransCommit, OciDataType, ReturnCode, StatementType, SyntaxType,
 };
-use oci_error::{get_error, OciError};
-use row::Row;
+use crate::oci_error::{get_error, OciError};
+use crate::row::Row;
 use std::ptr;
-use types::{SqlValue, ToSqlValue};
+use crate::types::{SqlValue, ToSqlValue};
 
 #[derive(Debug)]
 enum ResultState {

@@ -1,5 +1,5 @@
 use libc::{c_int, c_uchar, c_uint, c_void};
-use oci_bindings::{HandleType, OCIErrorGet, ReturnCode};
+use crate::oci_bindings::{HandleType, OCIErrorGet, ReturnCode};
 use std::error;
 use std::error::Error;
 use std::fmt;
@@ -137,6 +137,7 @@ pub(crate) fn get_error(
             ReturnCode::InvalidHandle => {
                 error_record.add_error(error_code, "Invalid handle used to get errors".to_string())
             }
+            ReturnCode::SuccessWithInfo => unreachable!() // I think...
         }
         record_nmb += 1;
     }
