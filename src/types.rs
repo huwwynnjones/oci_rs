@@ -1,8 +1,8 @@
+use crate::oci_bindings::OciDataType;
+use crate::oci_error::OciError;
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
 use chrono::{Date, DateTime, Datelike, FixedOffset, TimeZone, Timelike, Utc};
 use libc::{c_int, c_void};
-use crate::oci_bindings::OciDataType;
-use crate::oci_error::OciError;
 
 /// The types that support conversion from OCI to Rust types.
 ///
@@ -184,6 +184,12 @@ impl ToSqlValue for i64 {
 impl ToSqlValue for f64 {
     fn to_sql_value(&self) -> SqlValue {
         SqlValue::Float(*self)
+    }
+}
+
+impl ToSqlValue for &[u8] {
+    fn to_sql_value(&self) -> SqlValue {
+        panic!("No implemented");
     }
 }
 

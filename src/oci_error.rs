@@ -1,5 +1,5 @@
-use libc::{c_int, c_uchar, c_uint, c_void};
 use crate::oci_bindings::{HandleType, OCIErrorGet, ReturnCode};
+use libc::{c_int, c_uchar, c_uint, c_void};
 use std::error;
 use std::error::Error;
 use std::fmt;
@@ -88,7 +88,8 @@ impl fmt::Display for ErrorRecord {
                     index + 1,
                     error.0,
                     &error.1
-                ).as_ref(),
+                )
+                .as_ref(),
             )
         }
         write!(f, "{}", text)
@@ -137,7 +138,7 @@ pub(crate) fn get_error(
             ReturnCode::InvalidHandle => {
                 error_record.add_error(error_code, "Invalid handle used to get errors".to_string())
             }
-            ReturnCode::SuccessWithInfo => unreachable!() // I think...
+            ReturnCode::SuccessWithInfo => unreachable!(), // I think...
         }
         record_nmb += 1;
     }

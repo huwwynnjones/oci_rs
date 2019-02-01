@@ -1,6 +1,5 @@
 use crate::common::set_handle_attribute;
 use crate::connection::Connection;
-use libc::{c_int, c_schar, c_short, c_uint, c_ushort, c_void};
 use crate::oci_bindings::{
     AttributeType, DescriptorType, EnvironmentMode, FetchType, HandleType, OCIAttrGet, OCIBind,
     OCIBindByPos, OCIDefine, OCIDefineByPos, OCIDescriptorFree, OCIError, OCIParam, OCIParamGet,
@@ -9,8 +8,9 @@ use crate::oci_bindings::{
 };
 use crate::oci_error::{get_error, OciError};
 use crate::row::Row;
-use std::ptr;
 use crate::types::{SqlValue, ToSqlValue};
+use libc::{c_int, c_schar, c_short, c_uint, c_ushort, c_void};
+use std::ptr;
 
 #[derive(Debug)]
 enum ResultState {
@@ -163,7 +163,7 @@ impl<'conn> Statement<'conn> {
                         self.connection.error_as_void(),
                         HandleType::Error,
                         "Binding parameter",
-                    ))
+                    ));
                 }
             }
         }
@@ -373,13 +373,13 @@ impl<'conn> Statement<'conn> {
 
     /// Transition to fetched state.
     ///
-    fn results_fetched(&mut self) -> () {
+    fn results_fetched(&mut self) {
         self.result_state = ResultState::Fetched
     }
 
     /// Transition to not-fetched state.
     ///
-    fn results_not_fetched(&mut self) -> () {
+    fn results_not_fetched(&mut self) {
         self.result_state = ResultState::NotFetched
     }
 }

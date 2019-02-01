@@ -1,6 +1,6 @@
-use libc::{c_uint, c_void};
 use crate::oci_bindings::{AttributeType, HandleType, OCIAttrSet, OCIError, ReturnCode};
 use crate::oci_error::{get_error, OciError};
+use libc::{c_uint, c_void};
 
 /// Set handle attribute
 pub fn set_handle_attribute(

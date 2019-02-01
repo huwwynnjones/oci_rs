@@ -502,9 +502,9 @@ pub mod statement;
 
 #[cfg(test)]
 mod tests {
-    use chrono::{Date, DateTime, FixedOffset, TimeZone, Timelike, Utc};
     use crate::connection::Connection;
     use crate::oci_error::OciError;
+    use chrono::{Date, DateTime, FixedOffset, TimeZone, Timelike, Utc};
     const CONNECTION: &str = "localhost:1521/xe";
     const BAD_CONNECTION: &str = "localhost:1521/xp";
     const USER: &str = "oci_rs";
@@ -1262,9 +1262,9 @@ mod tests {
     }
 
     /// Test Blob and Clob
-    /// 
+    ///
     #[test]
-    fn lob_fields(){
+    fn lob_fields() {
         let conn = match Connection::new(CONNECTION, USER, PASSWORD) {
             Ok(conn) => conn,
             Err(err) => panic!("Failed to create a connection: {}", err),
@@ -1285,8 +1285,22 @@ mod tests {
             panic!("Couldn't execute create Films: {}", err)
         }
 
-        let id = 1;
-        let binary : [u8; 15] = [0; 15];
+        
+        let sql_insert = "INSERT INTO big_objects(ObjectId, Binary) VALUES(:objectId :binary)";
+        let mut insert = match conn.create_prepared_statement(sql_insert) {
+            Ok(stmt) => stmt,
+            Err(err) => panic!("Cannot create insert for big_objects: {}", err),
+        };
 
+        let id = 1;
+        let binary: [u8; 15] = [0; 15];
+
+        if let Err(err) = insert.bind(&[&id, &&binary[..]]) {
+            panic!("Cannot bind for insert to Big: {}", err)
+        }
+
+        if let Err(err) = insert.execute() {
+            panic!("Couldn't execute insert into big_objects: {}", err)
+        }   
     }
 }

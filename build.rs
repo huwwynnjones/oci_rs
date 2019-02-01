@@ -15,9 +15,11 @@ fn main() {
 
     let host = host();
     match (host.os(), host.env()) {
-        ("windows", Some("gnu")) => if let Some(path) = find_dll(lib_name) {
-            rustc::link_search(Some(SearchKind::Native), path);
-        },
+        ("windows", Some("gnu")) => {
+            if let Some(path) = find_dll(lib_name) {
+                rustc::link_search(Some(SearchKind::Native), path);
+            }
+        }
         _ => (),
     }
 }

@@ -7,7 +7,7 @@ use crate::oci_bindings::{
 use crate::oci_error::{get_error, OciError};
 use crate::statement::Statement;
 use libc::{c_int, c_uint, c_void, size_t};
-use log::{info,error};
+use log::{error, info};
 use std::ptr;
 
 /// Represents a connection to a database.
@@ -142,7 +142,7 @@ impl Drop for Connection {
 
         match session_end_result.into() {
             ReturnCode::Success => (),
-            _ => error!("Could not end user session")
+            _ => error!("Could not end user session"),
         }
 
         let disconnect_result =
@@ -150,7 +150,7 @@ impl Drop for Connection {
 
         match disconnect_result.into() {
             ReturnCode::Success => (),
-            _ => error!("Could not disconnect")
+            _ => error!("Could not disconnect"),
         }
 
         let free_result = unsafe {
@@ -183,7 +183,7 @@ fn create_environment_handle() -> Result<*mut OCIEnv, OciError> {
         _ => Err(get_error(
             env as *mut c_void,
             HandleType::Environment,
-            "Environment handle creation",
+            "Creating environment handle",
         )),
     }
 }
@@ -342,15 +342,7 @@ fn connect_to_database(
             EnvironmentMode::Default.into(),
         )
     };
-
-    match connect_result.into() {
-        ReturnCode::Success => Ok(()),
-        _ => Err(get_error(
-            error as *mut c_void,
-            HandleType::Error,
-            "Database connection",
-        )),
-    }
+    check_result(connect_result, error, "Connection to the database")
 }
 
 /// start user session
@@ -368,24 +360,23 @@ fn start_session(
             EnvironmentMode::Default.into(),
         )
     };
+    check_result(session_result, error, "Starting user session")
+}
 
-    match session_result.into() {
+fn check_result(result: i32, error: *mut OCIError, message: &str) -> Result<(), OciError> {
+    match result.into() {
         ReturnCode::Success => Ok(()),
         ReturnCode::SuccessWithInfo => {
             info!(
                 "{}",
-                get_error(
-                    error as *mut c_void,
-                    HandleType::Error,
-                    "Starting user session",
-                )
+                get_error(error as *mut c_void, HandleType::Error, &message,)
             );
             Ok(())
         }
-        _ => Err(get_error(
-            error as *mut c_void,
-            HandleType::Error,
-            "Starting user session",
-        )),
+        _ => {
+            let err = get_error(error as *mut c_void, HandleType::Error, &message);
+            error!("{}", err);
+            Err(err)
+        }
     }
 }
