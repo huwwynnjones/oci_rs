@@ -1293,10 +1293,10 @@ mod tests {
         };
 
         let id = 1;
-        let binary: [u8; 15] = [0; 15];
+        let binary: [u8; 15] = [8; 15];
 
         if let Err(err) = insert.bind(&[&id, &&binary[..]]) {
-            panic!("Cannot bind for insert to Big: {}", err)
+            panic!("Cannot bind for insert to big_objects: {}", err)
         }
 
         if let Err(err) = insert.execute() {

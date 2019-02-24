@@ -103,17 +103,26 @@ impl Connection {
     }
 
     /// Returns the error handle for the connection.
+    /// 
     pub(crate) fn error(&self) -> *mut OCIError {
         self.error
     }
 
-    /// Some calls to OCI functions require the error handle to be converted to a `c_void`
+    /// Some calls to OCI functions require the error handle to be converted to a mutable `c_void`
     /// , this is a convience method for that.
-    pub(crate) fn error_as_void(&self) -> *mut c_void {
+    /// 
+    pub(crate) fn error_as_mut_void(&self) -> *mut c_void {
         self.error as *mut c_void
     }
 
+    /// Returns the environment handle for the connection
+    /// 
+    pub(crate) fn environment(&self) -> *const OCIEnv {
+        self.environment
+    }
+
     /// Returns the service handle for the connection.
+    /// 
     pub(crate) fn service(&self) -> *mut OCISvcCtx {
         self.service
     }

@@ -6,7 +6,7 @@ use libc::{c_int, c_void};
 
 /// The types that support conversion from OCI to Rust types.
 ///
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug)]
 pub enum SqlValue {
     /// Anything specified as `VARCHAR` or `VARCHAR2` will end up here.
     VarChar(String),
@@ -26,6 +26,8 @@ pub enum SqlValue {
     Timestamp(DateTime<Utc>, [u8; 11]),
     /// Represents a timestamp with a time zone
     TimestampTz(DateTime<FixedOffset>, [u8; 13]),
+    /// Represents a blob
+    Blob(Vec<u8>),
 }
 impl SqlValue {
     /// Returns the internal value converting on the way to whichever type implements
@@ -68,6 +70,7 @@ impl SqlValue {
             SqlValue::Date(_, ref b) => b.as_ptr() as *mut c_void,
             SqlValue::Timestamp(_, ref b) => b.as_ptr() as *mut c_void,
             SqlValue::TimestampTz(_, ref b) => b.as_ptr() as *mut c_void,
+            SqlValue::Blob(ref b) => b.as_ptr() as *mut c_void,
         }
     }
 
@@ -81,9 +84,10 @@ impl SqlValue {
             SqlValue::VarChar(ref s) | SqlValue::Char(ref s) => s.capacity() as c_int,
             SqlValue::Integer(..) | SqlValue::Float(..) => 8 as c_int,
             SqlValue::Null => panic!("Null not handled"),
-            SqlValue::Date(..) => 7 as c_int,
-            SqlValue::Timestamp(..) => 11 as c_int,
-            SqlValue::TimestampTz(..) => 13 as c_int,
+            SqlValue::Date(_, ref b) => b.len() as c_int,
+            SqlValue::Blob(ref b) => b.len() as c_int,
+            SqlValue::Timestamp(_, ref b) => b.len() as c_int,
+            SqlValue::TimestampTz(_, ref b) => b.len() as c_int,
         }
     }
 
@@ -103,6 +107,7 @@ impl SqlValue {
             SqlValue::Date(..) => OciDataType::SqlDate,
             SqlValue::Timestamp(..) => OciDataType::SqlTimestamp,
             SqlValue::TimestampTz(..) => OciDataType::SqlTimestampTz,
+            SqlValue::Blob(..) => OciDataType::SqlBlob,
         }
     }
 
@@ -230,19 +235,21 @@ pub trait FromSqlValue {
 impl FromSqlValue for String {
     // Converts from a `SqlValue` into a `String`
     //
-    // Worth noting that this is intended to convert all types into a
-    // `String` representation of the value. It also does this for
-    // `SqlValue::Null` for which it returns "null". That might prove a bad idea.
+    // Worth noting that this is intended to convert types into a
+    // `String` representation of the value. It does not convert null,
+    // previous versions of this library did convert null to Some("null")
+    // but that turned out to be annoying as it required furhter conversion to None
+    // if needed.
     //
     fn from_sql_value(sql_value: &SqlValue) -> Option<Self> {
         match *sql_value {
             SqlValue::VarChar(ref s) | SqlValue::Char(ref s) => Some(s.to_string()),
             SqlValue::Integer(i) => Some(format!("{}", i)),
             SqlValue::Float(f) => Some(format!("{}", f)),
-            SqlValue::Null => Some("null".to_string()),
             SqlValue::Date(ref d, _) => Some(format!("{}", d)),
             SqlValue::Timestamp(ref d, _) => Some(format!("{}", d)),
             SqlValue::TimestampTz(ref d, _) => Some(format!("{}", d)),
+            _ => None,
         }
     }
 }

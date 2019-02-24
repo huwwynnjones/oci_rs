@@ -4,12 +4,12 @@ use crate::oci_bindings::{
     AttributeType, DescriptorType, EnvironmentMode, FetchType, HandleType, OCIAttrGet, OCIBind,
     OCIBindByPos, OCIDefine, OCIDefineByPos, OCIDescriptorFree, OCIError, OCIParam, OCIParamGet,
     OCISnapshot, OCIStmt, OCIStmtExecute, OCIStmtFetch2, OCIStmtPrepare2, OCIStmtRelease,
-    OCITransCommit, OciDataType, ReturnCode, StatementType, SyntaxType,
+    OCITransCommit, OciDataType, ReturnCode, StatementType, SyntaxType, OCILobLocator, OCIDescriptorAlloc, OCIEnv
 };
 use crate::oci_error::{get_error, OciError};
 use crate::row::Row;
 use crate::types::{SqlValue, ToSqlValue};
-use libc::{c_int, c_schar, c_short, c_uint, c_ushort, c_void};
+use libc::{c_int, c_schar, c_short, c_uint, c_ushort, c_void, size_t};
 use std::ptr;
 
 #[derive(Debug)]
@@ -44,12 +44,14 @@ pub struct Statement<'conn> {
     values: Vec<SqlValue>,
     result_set: Vec<Row>,
     result_state: ResultState,
+    lob_locator: *mut OCILobLocator,
 }
 impl<'conn> Statement<'conn> {
     /// Creates a new `Statement`.
     ///
     pub(crate) fn new(connection: &'conn Connection, sql: &str) -> Result<Self, OciError> {
         let statement = prepare_statement(connection, sql)?;
+        let lob_locator = create_lob_locator(connection.environment(), connection.error())?;
         Ok(Statement {
             connection,
             statement,
@@ -57,6 +59,7 @@ impl<'conn> Statement<'conn> {
             values: Vec::new(),
             result_set: Vec::new(),
             result_state: ResultState::NotFetched,
+            lob_locator: lob_locator as *mut OCILobLocator,
         })
     }
 
@@ -160,7 +163,7 @@ impl<'conn> Statement<'conn> {
                 ReturnCode::Success => (),
                 _ => {
                     return Err(get_error(
-                        self.connection.error_as_void(),
+                        self.connection.error_as_mut_void(),
                         HandleType::Error,
                         "Binding parameter",
                     ));
@@ -203,7 +206,7 @@ impl<'conn> Statement<'conn> {
                 Ok(())
             }
             _ => Err(get_error(
-                self.connection.error_as_void(),
+                self.connection.error_as_mut_void(),
                 HandleType::Error,
                 "Executing statement",
             )),
@@ -233,8 +236,7 @@ impl<'conn> Statement<'conn> {
             ResultState::Fetched => (),
             ResultState::NotFetched => {
                 let rows: Result<Vec<Row>, _> = self.lazy_result_set().collect();
-                self.result_set = rows?;
-                self.results_fetched();
+                self.result_set = rows?
             }
         }
         Ok(&self.result_set)
@@ -364,7 +366,7 @@ impl<'conn> Statement<'conn> {
         match commit_result.into() {
             ReturnCode::Success => Ok(()),
             _ => Err(get_error(
-                self.connection.error_as_void(),
+                self.connection.error_as_mut_void(),
                 HandleType::Error,
                 "Commiting statement",
             )),
@@ -391,7 +393,15 @@ impl<'conn> Drop for Statement<'conn> {
     ///
     /// Panics if the resources can't be freed. This would be
     /// a failure of the underlying OCI function.
+    /// 
     fn drop(&mut self) {
+        let descriptor_free_result = unsafe {
+            OCIDescriptorFree(self.lob_locator as *mut c_void, DescriptorType::Lob.into())
+        };
+        match descriptor_free_result.into() {
+            ReturnCode::Success => (),
+            _ => panic!("Could not free the parameter descriptor in lob locator"),
+        }
         if let Err(err) = release_statement(self.statement, self.connection.error()) {
             panic!(format!(
                 "Could not release the statement Statement: {}",
@@ -408,8 +418,9 @@ impl<'conn> Drop for Statement<'conn> {
 /// [1]: struct.Statement.html#method.lazy_result_set
 #[derive(Debug)]
 pub struct RowIter<'stmt> {
-    statement: &'stmt Statement<'stmt>,
+    statement: &'stmt Statement<'stmt>
 }
+
 impl<'stmt> Iterator for RowIter<'stmt> {
     type Item = Result<Row, OciError>;
 
@@ -475,7 +486,7 @@ fn prepare_statement(connection: &Connection, sql: &str) -> Result<*mut OCIStmt,
             let mut err_txt = String::from("Preparing statement: ");
             err_txt.push_str(sql);
             Err(get_error(
-                connection.error_as_void(),
+                connection.error_as_mut_void(),
                 HandleType::Error,
                 &err_txt,
             ))
@@ -513,7 +524,6 @@ fn get_statement_type(
 }
 
 #[derive(Debug)]
-
 struct ColumnPtrHolder {
     define: *mut OCIDefine,
     buffer: Vec<u8>,
@@ -569,6 +579,8 @@ fn define_output_parameter(
     data_size: c_ushort,
     data_type: &OciDataType,
 ) -> Result<ColumnPtrHolder, OciError> {
+    // VarChar and Char read the actual number of characters to avoid
+    // picking up loads of null values
     let buffer_size = match *data_type {
         OciDataType::SqlVarChar | OciDataType::SqlChar => data_size,
         _ => data_type.size(),
@@ -866,4 +878,28 @@ fn fetch_next_row(statement: *mut OCIStmt, error: *mut OCIError) -> Result<Fetch
             "Fetching",
         )),
     }
+}
+
+fn create_lob_locator(env: *const OCIEnv, error: *mut OCIError) -> Result<*mut c_void, OciError> {
+        let descpp: *mut c_void = ptr::null_mut();
+        let xtramem_sz: size_t = 0;
+        let null_ptr = ptr::null_mut();
+        let lob_locator_result = unsafe {
+            OCIDescriptorAlloc(
+                env as *const c_void,
+                &descpp,
+                DescriptorType::Lob.into(),
+                xtramem_sz,
+                null_ptr,
+            )
+        };
+
+        match lob_locator_result.into() {
+            ReturnCode::Success | ReturnCode::SuccessWithInfo => Ok(descpp),
+            _ => Err(get_error(
+                error as *mut c_void,
+                HandleType::Error,
+                "Creating lob locator"
+            )),
+        }
 }

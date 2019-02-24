@@ -5,7 +5,7 @@ use std::ops::Index;
 ///
 #[derive(Debug)]
 pub struct Row {
-    columns: Vec<SqlValue>,
+    columns: Vec<SqlValue>
 }
 impl Row {
     pub(crate) fn new(columns: Vec<SqlValue>) -> Row {

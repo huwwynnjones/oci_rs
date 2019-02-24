@@ -20,6 +20,8 @@ pub enum OCIBind {}
 pub enum OCIParam {}
 #[derive(Debug)]
 pub enum OCIDefine {}
+#[derive(Debug)]
+pub enum OCILobLocator {}
 
 const OCI_DEFAULT: c_uint = 0;
 const OCI_THREADED: c_uint = 1;
@@ -219,6 +221,7 @@ const SQLT_INT: c_ushort = 3;
 const SQLT_FLT: c_ushort = 4;
 const SQLT_DAT: c_ushort = 12;
 const SQLT_AFC: c_ushort = 96;
+const SQLT_BLOB: c_ushort = 113;
 const SQLT_TIMESTAMP: c_ushort = 187;
 const SQLT_TIMESTAMP_INTERNAL: c_ushort = 180;
 const SQLT_TIMESTAMP_TZ: c_ushort = 188;
@@ -232,6 +235,7 @@ pub enum OciDataType {
     SqlFloat,
     SqlDate,
     SqlChar,
+    SqlBlob,
     SqlTimestamp,
     SqlTimestampTz,
 }
@@ -244,6 +248,7 @@ impl OciDataType {
             OciDataType::SqlInt | OciDataType::SqlNum | OciDataType::SqlFloat => 8,
             OciDataType::SqlDate => 7,
             OciDataType::SqlChar => 2000,
+            OciDataType::SqlBlob => 0,
             OciDataType::SqlTimestamp => 11,
             OciDataType::SqlTimestampTz => 13,
         }
@@ -258,6 +263,7 @@ impl From<OciDataType> for c_ushort {
             OciDataType::SqlNum => SQLT_NUM,
             OciDataType::SqlFloat => SQLT_FLT,
             OciDataType::SqlDate => SQLT_DAT,
+            OciDataType::SqlBlob => SQLT_BLOB,
             OciDataType::SqlChar => SQLT_AFC,
             OciDataType::SqlTimestamp => SQLT_TIMESTAMP_INTERNAL,
             OciDataType::SqlTimestampTz => SQLT_TIMESTAMP_TZ_INTERNAL,
@@ -273,6 +279,7 @@ impl<'a> From<&'a OciDataType> for c_ushort {
             OciDataType::SqlNum => SQLT_NUM,
             OciDataType::SqlFloat => SQLT_FLT,
             OciDataType::SqlDate => SQLT_DAT,
+            OciDataType::SqlBlob => SQLT_BLOB,
             OciDataType::SqlChar => SQLT_AFC,
             OciDataType::SqlTimestamp => SQLT_TIMESTAMP_INTERNAL,
             OciDataType::SqlTimestampTz => SQLT_TIMESTAMP_TZ_INTERNAL,
@@ -362,17 +369,20 @@ impl From<c_uint> for StatementType {
     }
 }
 
+const OCI_DTYPE_LOB: c_uint = 50;
 const OCI_DTYPE_PARAM: c_uint = 53;
 
 #[derive(Debug)]
 pub enum DescriptorType {
+    Lob,
     Parameter,
 }
 
 impl From<DescriptorType> for c_uint {
     fn from(descriptor_type: DescriptorType) -> Self {
         match descriptor_type {
-            DescriptorType::Parameter => OCI_DTYPE_PARAM,
+            DescriptorType::Lob => OCI_DTYPE_LOB,
+            DescriptorType::Parameter => OCI_DTYPE_PARAM
         }
     }
 }
@@ -744,4 +754,20 @@ extern "C" {
     ///
     pub fn OCIDescriptorFree(descp: *mut c_void, desc_type: c_uint) -> c_int;
 
+    /// Allocates storage to hold descriptors or LOB locators.
+    /// See [Oracle docs](https://docs.oracle.com/en/database/oracle/oracle-database/12.2/lnoci/
+    /// handle-and-descriptor-functions.html#GUID-E9EF2766-E078-49A7-B1D1-738E4BA4814F) for more info.
+    /// 
+    /// # Safety
+    /// 
+    /// Unsafe C
+    /// 
+    pub fn OCIDescriptorAlloc(
+        parenth: *const c_void,
+        descpp: &*mut c_void,
+        des_type: c_uint,
+        xtramem_sz: size_t,
+        //usrmempp: &*mut c_void
+        usrmempp: *const c_void,
+    ) -> c_int;
 }
