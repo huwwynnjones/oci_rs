@@ -1285,15 +1285,14 @@ mod tests {
             panic!("Couldn't execute create Films: {}", err)
         }
 
-        
-        let sql_insert = "INSERT INTO big_objects(ObjectId, Binary) VALUES(:objectId :binary)";
+        let sql_insert = "INSERT INTO big_objects(ObjectId, Binary) VALUES(:objectId, :binary)";
         let mut insert = match conn.create_prepared_statement(sql_insert) {
             Ok(stmt) => stmt,
             Err(err) => panic!("Cannot create insert for big_objects: {}", err),
         };
 
         let id = 1;
-        let binary: [u8; 15] = [8; 15];
+        let binary: [u8; 15] = [0b11111111; 15];
 
         if let Err(err) = insert.bind(&[&id, &&binary[..]]) {
             panic!("Cannot bind for insert to big_objects: {}", err)
@@ -1301,6 +1300,7 @@ mod tests {
 
         if let Err(err) = insert.execute() {
             panic!("Couldn't execute insert into big_objects: {}", err)
-        }   
+        }
     }
+
 }

@@ -4,12 +4,12 @@ use crate::oci_bindings::{
     AttributeType, DescriptorType, EnvironmentMode, FetchType, HandleType, OCIAttrGet, OCIBind,
     OCIBindByPos, OCIDefine, OCIDefineByPos, OCIDescriptorFree, OCIError, OCIParam, OCIParamGet,
     OCISnapshot, OCIStmt, OCIStmtExecute, OCIStmtFetch2, OCIStmtPrepare2, OCIStmtRelease,
-    OCITransCommit, OciDataType, ReturnCode, StatementType, SyntaxType, OCILobLocator, OCIDescriptorAlloc, OCIEnv
+    OCITransCommit, OciDataType, ReturnCode, StatementType, SyntaxType,
 };
 use crate::oci_error::{get_error, OciError};
 use crate::row::Row;
 use crate::types::{SqlValue, ToSqlValue};
-use libc::{c_int, c_schar, c_short, c_uint, c_ushort, c_void, size_t};
+use libc::{c_int, c_schar, c_short, c_uint, c_ushort, c_void};
 use std::ptr;
 
 #[derive(Debug)]
@@ -44,14 +44,12 @@ pub struct Statement<'conn> {
     values: Vec<SqlValue>,
     result_set: Vec<Row>,
     result_state: ResultState,
-    lob_locator: *mut OCILobLocator,
 }
 impl<'conn> Statement<'conn> {
     /// Creates a new `Statement`.
     ///
     pub(crate) fn new(connection: &'conn Connection, sql: &str) -> Result<Self, OciError> {
         let statement = prepare_statement(connection, sql)?;
-        let lob_locator = create_lob_locator(connection.environment(), connection.error())?;
         Ok(Statement {
             connection,
             statement,
@@ -59,7 +57,6 @@ impl<'conn> Statement<'conn> {
             values: Vec::new(),
             result_set: Vec::new(),
             result_state: ResultState::NotFetched,
-            lob_locator: lob_locator as *mut OCILobLocator,
         })
     }
 
@@ -142,6 +139,7 @@ impl<'conn> Statement<'conn> {
             let rcodep = null_mut_ptr as *mut c_ushort;
             let curelep = null_mut_ptr as *mut c_uint;
             let maxarr_len: c_uint = 0;
+
             let bind_result = unsafe {
                 OCIBindByPos(
                     self.statement,
@@ -393,15 +391,8 @@ impl<'conn> Drop for Statement<'conn> {
     ///
     /// Panics if the resources can't be freed. This would be
     /// a failure of the underlying OCI function.
-    /// 
+    ///
     fn drop(&mut self) {
-        let descriptor_free_result = unsafe {
-            OCIDescriptorFree(self.lob_locator as *mut c_void, DescriptorType::Lob.into())
-        };
-        match descriptor_free_result.into() {
-            ReturnCode::Success => (),
-            _ => panic!("Could not free the parameter descriptor in lob locator"),
-        }
         if let Err(err) = release_statement(self.statement, self.connection.error()) {
             panic!(format!(
                 "Could not release the statement Statement: {}",
@@ -418,7 +409,7 @@ impl<'conn> Drop for Statement<'conn> {
 /// [1]: struct.Statement.html#method.lazy_result_set
 #[derive(Debug)]
 pub struct RowIter<'stmt> {
-    statement: &'stmt Statement<'stmt>
+    statement: &'stmt Statement<'stmt>,
 }
 
 impl<'stmt> Iterator for RowIter<'stmt> {
@@ -656,6 +647,7 @@ fn column_data_size(parameter: *mut OCIParam, error: *mut OCIError) -> Result<c_
 /// conversion to either a integer or float. We can do this by checking the
 /// scale and precision of the number in the column. If it the precision is
 /// non-zero and scale is -127 then it is float.
+///
 fn determine_external_data_type(
     parameter: *mut OCIParam,
     error: *mut OCIError,
@@ -785,12 +777,6 @@ fn allocate_parameter_handle(
 
 impl Drop for Column {
     fn drop(&mut self) {
-        // let define_free_result =
-        //    unsafe { OCIHandleFree(self.define as *mut c_void, HandleType::Define.into()) };
-        // match define_free_result.into() {
-        //    ReturnCode::Success => (),
-        //    _ => panic!("Could not free the define handle in Column"),
-        // }
         let descriptor_free_result = unsafe {
             OCIDescriptorFree(self.handle as *mut c_void, DescriptorType::Parameter.into())
         };
@@ -878,28 +864,4 @@ fn fetch_next_row(statement: *mut OCIStmt, error: *mut OCIError) -> Result<Fetch
             "Fetching",
         )),
     }
-}
-
-fn create_lob_locator(env: *const OCIEnv, error: *mut OCIError) -> Result<*mut c_void, OciError> {
-        let descpp: *mut c_void = ptr::null_mut();
-        let xtramem_sz: size_t = 0;
-        let null_ptr = ptr::null_mut();
-        let lob_locator_result = unsafe {
-            OCIDescriptorAlloc(
-                env as *const c_void,
-                &descpp,
-                DescriptorType::Lob.into(),
-                xtramem_sz,
-                null_ptr,
-            )
-        };
-
-        match lob_locator_result.into() {
-            ReturnCode::Success | ReturnCode::SuccessWithInfo => Ok(descpp),
-            _ => Err(get_error(
-                error as *mut c_void,
-                HandleType::Error,
-                "Creating lob locator"
-            )),
-        }
 }

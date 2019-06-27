@@ -194,7 +194,7 @@ impl ToSqlValue for f64 {
 
 impl ToSqlValue for &[u8] {
     fn to_sql_value(&self) -> SqlValue {
-        panic!("No implemented");
+        SqlValue::Blob(self.to_vec())
     }
 }
 
